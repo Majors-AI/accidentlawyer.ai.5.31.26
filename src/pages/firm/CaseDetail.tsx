@@ -18,6 +18,14 @@ export default function CaseDetail() {
   const [msg, setMsg] = useState('');
   const [policyForm, setPolicyForm] = useState({ kind: 'adverse_liability', carrier: '', policy_number: '', limits: '' });
   const [addingPolicy, setAddingPolicy] = useState(false);
+  const [treatments, setTreatments] = useState<any[]>([]);
+  const [followUps, setFollowUps] = useState<any[]>([]);
+  const [providers, setProviders] = useState<any[]>([]);
+  const [txForm, setTxForm] = useState({ provider_id: '', newName: '', newSpecialty: '', status: 'recommended', scheduled_at: '', total_billed: '' });
+  const [addingTx, setAddingTx] = useState(false);
+  const [editTx, setEditTx] = useState<any>(null);
+  const [fuForm, setFuForm] = useState({ label: '', due_at: '' });
+  const [addingFu, setAddingFu] = useState(false);
 
   async function load() {
     const { data } = await supabase.from('cases').select('*, clients(*)').eq('id', id).single();
@@ -28,15 +36,22 @@ export default function CaseDetail() {
     setPolicies(p ?? []);
     const { data: ap } = await supabase.from('approvals').select('*').eq('case_id', id).order('created_at',{ascending:false});
     setApprovals(ap ?? []);
+    const { data: tx } = await supabase.from('treatments').select('*, providers(name, specialty)').eq('case_id', id);
+    setTreatments(tx ?? []);
+    const { data: fu } = await supabase.from('follow_ups').select('*').eq('case_id', id).order('due_at',{ascending:true});
+    setFollowUps(fu ?? []);
   }
   useEffect(() => { load(); }, [id]);
+  useEffect(() => {
+    supabase.from('providers').select('id, name, specialty').order('name').then(({data}) => setProviders(data ?? []));
+  }, []);
   if (!c) return <div className="muted">Loading…</div>;
 
   const pendingApproval = approvals.find(a=>a.status==='requested');
 
   // --- decision-engine signal: should we consider dropping? ---
   const adverse = policies.find(p=>p.kind==='adverse_liability');
-  const treatTotal = 0; // wired to treatments table as that module deepens
+  const treatTotal = treatments.reduce((s, t) => s + (Number(t.total_billed) || 0), 0);
   const reasons: string[] = [];
   if (c.liability_disputed && (c.accepted_fault_pct ?? 100) < 50) reasons.push(`Adverse accepts only ${c.accepted_fault_pct}% fault`);
   if (c.limits_issue) reasons.push('Limits issue flagged');
@@ -98,6 +113,69 @@ export default function CaseDetail() {
     });
     setPolicyForm({ kind: 'adverse_liability', carrier: '', policy_number: '', limits: '' });
     setAddingPolicy(false);
+    load();
+  }
+
+  async function addTreatment() {
+    setAddingTx(true);
+    let pid = txForm.provider_id;
+    if (pid === '__new__') {
+      const { data: np } = await supabase.from('providers').insert({
+        name: txForm.newName, specialty: txForm.newSpecialty || null,
+      }).select().single();
+      if (!np) { setAddingTx(false); return; }
+      pid = np.id;
+      setProviders(prev => [...prev, np].sort((a, b) => a.name.localeCompare(b.name)));
+    }
+    await supabase.from('treatments').insert({
+      case_id: id, provider_id: pid || null, status: txForm.status,
+      scheduled_at: txForm.scheduled_at || null,
+      total_billed: txForm.total_billed ? Number(txForm.total_billed) : 0,
+    });
+    setTxForm({ provider_id: '', newName: '', newSpecialty: '', status: 'recommended', scheduled_at: '', total_billed: '' });
+    setAddingTx(false);
+    load();
+  }
+
+  async function toggleTxBool(txId: string, field: string, current: boolean) {
+    await supabase.from('treatments').update({ [field]: !current }).eq('id', txId);
+    load();
+  }
+
+  async function saveTxEdit() {
+    await supabase.from('treatments').update({
+      status: editTx.status,
+      scheduled_at: editTx.scheduled_at || null,
+      total_billed: editTx.total_billed ? Number(editTx.total_billed) : 0,
+    }).eq('id', editTx.id);
+    setEditTx(null);
+    load();
+  }
+
+  async function markFuDone(fuId: string) {
+    await supabase.from('follow_ups').update({ done: true }).eq('id', fuId);
+    load();
+  }
+
+  async function addFollowUp() {
+    setAddingFu(true);
+    await supabase.from('follow_ups').insert({
+      case_id: id, label: fuForm.label,
+      due_at: fuForm.due_at ? new Date(fuForm.due_at).toISOString() : null,
+    });
+    setFuForm({ label: '', due_at: '' });
+    setAddingFu(false);
+    load();
+  }
+
+  async function generateCadence() {
+    const now = Date.now();
+    await supabase.from('follow_ups').insert([
+      { case_id: id, label: '24h confirm', due_at: new Date(now + 1*864e5).toISOString() },
+      { case_id: id, label: '5 day',       due_at: new Date(now + 5*864e5).toISOString() },
+      { case_id: id, label: '2 week',      due_at: new Date(now + 14*864e5).toISOString() },
+      { case_id: id, label: '30 day',      due_at: new Date(now + 30*864e5).toISOString() },
+    ]);
     load();
   }
 
@@ -175,7 +253,7 @@ export default function CaseDetail() {
 
       {tab==='approvals' && <div className="card">
         <h3>Approvals & signatures</h3>
-        <p className="muted small" style={{marginTop:0}}>A case can’t advance while an approval is pending. Settlements and releases require the client’s signature. The client acts on these from their dashboard; settlement approvals can also come back through messages.</p>
+        <p className="muted small" style={{marginTop:0}}>A case can't advance while an approval is pending. Settlements and releases require the client's signature. The client acts on these from their dashboard; settlement approvals can also come back through messages.</p>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',margin:'8px 0 14px'}}>
           <button className="btn sm" onClick={()=>requestApproval('settlement','Approve settlement offer',false)}>Request settlement approval</button>
           <button className="btn sm" onClick={()=>requestApproval('release','Sign release & settlement statement',true)}>Request signed release</button>
@@ -197,7 +275,7 @@ export default function CaseDetail() {
 
       {tab==='conflicts' && <div className="card">
         <h3>Conflicts check</h3>
-        <p className="muted small">Runs at intake — name collisions against adverse parties, plus the driver-at-fault rule (don’t take a client adverse to a faulted driver we’d represent).</p>
+        <p className="muted small">Runs at intake — name collisions against adverse parties, plus the driver-at-fault rule (don't take a client adverse to a faulted driver we'd represent).</p>
         {conflict ? <>
           <span className={`tag ${conflict.result==='clear'?'good':conflict.result==='conflict'?'bad':'warn'}`}>{conflict.result.replace(/_/g,' ')}</span>
           <pre className="small muted" style={{whiteSpace:'pre-wrap',marginTop:12}}>{JSON.stringify(conflict.details,null,2)}</pre>
@@ -252,10 +330,130 @@ export default function CaseDetail() {
         </div>
       </div>}
 
-      {['treatment','demand','money','lit'].includes(tab) && <div className="card">
+      {tab==='treatment' && <>
+        <div className="card">
+          <h3>Treatment</h3>
+          <table>
+            <thead><tr><th>Provider</th><th>Status</th><th>Scheduled</th><th>Billed</th><th>Records</th><th>Bills</th><th></th></tr></thead>
+            <tbody>
+              {treatments.map(t => editTx?.id === t.id ? (
+                <tr key={t.id}>
+                  <td className="small"><b>{t.providers?.name ?? '—'}</b></td>
+                  <td>
+                    <select value={editTx.status} onChange={e=>setEditTx({...editTx,status:e.target.value})} style={{width:'auto'}}>
+                      {['recommended','scheduled','ongoing','complete'].map(s=><option key={s}>{s}</option>)}
+                    </select>
+                  </td>
+                  <td><input type="date" value={editTx.scheduled_at} onChange={e=>setEditTx({...editTx,scheduled_at:e.target.value})} style={{width:150}} /></td>
+                  <td><input type="number" min="0" value={editTx.total_billed} onChange={e=>setEditTx({...editTx,total_billed:e.target.value})} style={{width:90}} /></td>
+                  <td><span className={`tag tiny ${t.records_received?'good':'warn'}`} style={{cursor:'pointer'}} onClick={()=>toggleTxBool(t.id,'records_received',t.records_received)}>{t.records_received?'rcvd':'pending'}</span></td>
+                  <td><span className={`tag tiny ${t.bills_received?'good':'warn'}`} style={{cursor:'pointer'}} onClick={()=>toggleTxBool(t.id,'bills_received',t.bills_received)}>{t.bills_received?'rcvd':'pending'}</span></td>
+                  <td style={{whiteSpace:'nowrap'}}>
+                    <button className="btn sm" onClick={saveTxEdit}>Save</button>{' '}
+                    <button className="btn sm ghost" onClick={()=>setEditTx(null)}>Cancel</button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={t.id}>
+                  <td className="small"><b>{t.providers?.name ?? '—'}</b>{t.providers?.specialty && <> · <span className="muted">{t.providers.specialty}</span></>}</td>
+                  <td><span className={`tag tiny ${t.status==='complete'?'good':t.status==='ongoing'?'gold':'soft'}`}>{t.status}</span></td>
+                  <td className="small">{t.scheduled_at ?? '—'}</td>
+                  <td className="small">{t.total_billed ? `$${Number(t.total_billed).toLocaleString()}` : '—'}</td>
+                  <td><span className={`tag tiny ${t.records_received?'good':'warn'}`} style={{cursor:'pointer'}} onClick={()=>toggleTxBool(t.id,'records_received',t.records_received)}>{t.records_received?'rcvd':'pending'}</span></td>
+                  <td><span className={`tag tiny ${t.bills_received?'good':'warn'}`} style={{cursor:'pointer'}} onClick={()=>toggleTxBool(t.id,'bills_received',t.bills_received)}>{t.bills_received?'rcvd':'pending'}</span></td>
+                  <td><button className="btn sm ghost" onClick={()=>setEditTx({id:t.id,status:t.status,scheduled_at:t.scheduled_at??'',total_billed:String(t.total_billed??'')})}>Edit</button></td>
+                </tr>
+              ))}
+              {treatments.length===0 && <tr><td colSpan={7} className="muted">No treatments recorded.</td></tr>}
+            </tbody>
+          </table>
+          {treatments.length>0 && <p className="small" style={{textAlign:'right',marginTop:6,color:'var(--ink-soft)'}}>Total billed: <b>${treatTotal.toLocaleString()}</b></p>}
+          <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid var(--line)'}}>
+            <h4 style={{fontSize:14,fontFamily:'var(--sans)',fontWeight:600,marginBottom:10}}>Add treatment</h4>
+            <div className="row">
+              <div>
+                <label>Provider</label>
+                <select value={txForm.provider_id} onChange={e=>setTxForm(f=>({...f,provider_id:e.target.value}))}>
+                  <option value="">— select provider —</option>
+                  {providers.map(p=><option key={p.id} value={p.id}>{p.name}{p.specialty ? ` (${p.specialty})` : ''}</option>)}
+                  <option value="__new__">+ New provider…</option>
+                </select>
+              </div>
+              <div>
+                <label>Status</label>
+                <select value={txForm.status} onChange={e=>setTxForm(f=>({...f,status:e.target.value}))}>
+                  {['recommended','scheduled','ongoing','complete'].map(s=><option key={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            {txForm.provider_id==='__new__' && <div className="row">
+              <div>
+                <label>Provider name</label>
+                <input value={txForm.newName} onChange={e=>setTxForm(f=>({...f,newName:e.target.value}))} placeholder="Name" />
+              </div>
+              <div>
+                <label>Specialty</label>
+                <input value={txForm.newSpecialty} onChange={e=>setTxForm(f=>({...f,newSpecialty:e.target.value}))} placeholder="e.g. Chiropractic" />
+              </div>
+            </div>}
+            <div className="row">
+              <div>
+                <label>Scheduled date</label>
+                <input type="date" value={txForm.scheduled_at} onChange={e=>setTxForm(f=>({...f,scheduled_at:e.target.value}))} />
+              </div>
+              <div>
+                <label>Total billed ($)</label>
+                <input type="number" min="0" value={txForm.total_billed} onChange={e=>setTxForm(f=>({...f,total_billed:e.target.value}))} placeholder="0" />
+              </div>
+            </div>
+            <button className="btn sm" style={{marginTop:10}} onClick={addTreatment} disabled={addingTx}>
+              {addingTx ? 'Saving…' : 'Add treatment'}
+            </button>
+          </div>
+        </div>
+
+        <div className="card">
+          <h3>Follow-ups</h3>
+          <p className="muted small" style={{marginTop:0}}>SMS/email sending is a later integration phase — this tracks the data only.</p>
+          <table>
+            <thead><tr><th>Label</th><th>Due</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {followUps.map(f=>(
+                <tr key={f.id}>
+                  <td className="small">{f.label}</td>
+                  <td className="small">{f.due_at ? new Date(f.due_at).toLocaleDateString() : '—'}</td>
+                  <td>{f.done ? <span className="tag good tiny">done</span> : <span className="tag warn tiny">open</span>}</td>
+                  <td>{!f.done && <button className="btn sm ghost" onClick={()=>markFuDone(f.id)}>Mark done</button>}</td>
+                </tr>
+              ))}
+              {followUps.length===0 && <tr><td colSpan={4} className="muted">No follow-ups recorded.</td></tr>}
+            </tbody>
+          </table>
+          <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid var(--line)'}}>
+            <div className="row">
+              <div>
+                <label>Label</label>
+                <input value={fuForm.label} onChange={e=>setFuForm(f=>({...f,label:e.target.value}))} placeholder="e.g. 2 week check-in" />
+              </div>
+              <div>
+                <label>Due date</label>
+                <input type="date" value={fuForm.due_at} onChange={e=>setFuForm(f=>({...f,due_at:e.target.value}))} />
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
+              <button className="btn sm" onClick={addFollowUp} disabled={addingFu || !fuForm.label}>
+                {addingFu ? 'Saving…' : 'Add follow-up'}
+              </button>
+              <button className="btn sm ghost" onClick={generateCadence}>Generate standard cadence (24h / 5d / 2wk / 30d)</button>
+            </div>
+          </div>
+        </div>
+      </>}
+
+      {['demand','money','lit'].includes(tab) && <div className="card">
         <div className="scaffold">
-          <b>{ {treatment:'Treatment & follow-ups',demand:'Demand builder',money:'Settlement, reductions, liens & trust accounting',lit:'Litigation & pleadings'}[tab] }</b><br/>
-          This module’s tables exist in the database and are wired into the data model; the working UI is the next build pass. Nothing here will require migration — it slots onto the schema that’s already live.
+          <b>{ {demand:'Demand builder',money:'Settlement, reductions, liens & trust accounting',lit:'Litigation & pleadings'}[tab as any] }</b><br/>
+          This module's tables exist in the database and are wired into the data model; the working UI is the next build pass. Nothing here will require migration — it slots onto the schema that's already live.
         </div>
       </div>}
     </>
