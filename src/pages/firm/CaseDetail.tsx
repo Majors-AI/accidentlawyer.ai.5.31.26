@@ -7,6 +7,7 @@ import FileCabinet from '../../components/FileCabinet';
 import MoneyTab from './case-detail/MoneyTab';
 import LitTab from './case-detail/LitTab';
 import CaseClosure from './case-detail/CaseClosure';
+import ProviderBridge from './case-detail/ProviderBridge';
 
 const STAGES = ['lead','under_review','accepted','treating','demand','settlement','litigation','closed'];
 const DEMAND_STATUSES = ['draft','attorney_review','client_review','approved','sent'];
@@ -397,6 +398,7 @@ export default function CaseDetail() {
       </div>}
 
       {tab==='treatment' && <>
+        <ProviderBridge caseId={id!} c={c} onChange={load} />
         <div className="card">
           <h3>Treatment</h3>
           <table>
