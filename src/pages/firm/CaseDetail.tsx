@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../App';
 import MessageThread from '../../components/MessageThread';
 import FileCabinet from '../../components/FileCabinet';
+import MoneyTab from './case-detail/MoneyTab';
 
 const STAGES = ['lead','under_review','accepted','treating','demand','settlement','litigation','closed'];
 const DEMAND_STATUSES = ['draft','attorney_review','client_review','approved','sent'];
@@ -559,9 +560,11 @@ export default function CaseDetail() {
         </button>
       </div>}
 
-      {['money','lit'].includes(tab) && <div className="card">
+      {tab==='money' && <MoneyTab caseId={id!} c={c} treatTotal={treatTotal} providers={providers} />}
+
+      {tab==='lit' && <div className="card">
         <div className="scaffold">
-          <b>{ {money:'Settlement, reductions, liens & trust accounting',lit:'Litigation & pleadings'}[tab as any] }</b><br/>
+          <b>Litigation &amp; pleadings</b><br/>
           This module's tables exist in the database and are wired into the data model; the working UI is the next build pass. Nothing here will require migration — it slots onto the schema that's already live.
         </div>
       </div>}
