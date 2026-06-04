@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../App';
+import InviteTeammate from '../../components/InviteTeammate';
 
 export default function Account() {
   const { profile } = useAuth();
@@ -75,6 +76,8 @@ export default function Account() {
         </table>
         <p className="muted tiny" style={{marginTop:8}}>Billed monthly. Card processing connects via Stripe; “Pay now” records the payment for now. Bills unpaid after 30 days move the account to suspended.</p>
       </div>
+
+      <InviteTeammate />
 
       <div className="grid two">
         <div className="card">

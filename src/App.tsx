@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { supabase, hasSupabase } from './lib/supabase';
 import Login from './pages/Login';
+import AcceptInvite from './pages/AcceptInvite';
 import Layout from './components/Layout';
 import Intake from './pages/client/Intake';
 import ClientDashboard from './pages/client/Dashboard';
@@ -25,6 +26,7 @@ export const useAuth = () => useContext(AuthCtx);
 export const isFirm = (r?: string) => r === 'attorney' || r === 'staff' || r === 'admin';
 
 export default function App() {
+  const loc = useLocation();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +47,7 @@ export default function App() {
   }, []);
   const signOut = () => supabase.auth.signOut();
 
+  if (loc.pathname === '/accept-invite') return <AcceptInvite />;
   if (loading) return <div className="auth"><div className="muted">Loading…</div></div>;
   if (!profile) return <Login />;
 
