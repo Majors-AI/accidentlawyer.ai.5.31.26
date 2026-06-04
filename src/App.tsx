@@ -7,6 +7,9 @@ import Intake from './pages/client/Intake';
 import ClientDashboard from './pages/client/Dashboard';
 import Setup from './pages/client/Setup';
 import ClientMessages from './pages/client/Messages';
+import Journal from './pages/client/Journal';
+import WageLoss from './pages/client/WageLoss';
+import Treatment from './pages/client/Treatment';
 import CaseList from './pages/firm/CaseList';
 import CaseDetail from './pages/firm/CaseDetail';
 import ApprovalInbox from './pages/firm/ApprovalInbox';
@@ -74,6 +77,9 @@ export default function App() {
               <Route path="/intake" element={<Intake />} />
               <Route path="/setup" element={<Setup />} />
               <Route path="/messages" element={<ClientMessages />} />
+              <Route path="/journal" element={<Journal />} />
+              <Route path="/wage-loss" element={<WageLoss />} />
+              <Route path="/treatment" element={<Treatment />} />
               <Route path="*" element={<Navigate to="/" />} />
             </>
           )}
