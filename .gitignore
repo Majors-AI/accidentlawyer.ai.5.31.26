@@ -2,3 +2,5 @@ node_modules
 dist
 .env
 ala/
+supabase/.dburl
+scripts/_apply.mjs
