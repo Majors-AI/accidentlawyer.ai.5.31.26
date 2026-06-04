@@ -39,11 +39,16 @@ async function main() {
     { code: 'AZ', name: 'Arizona',    comparative_scheme: 'pure_comparative' },
     { code: 'WA', name: 'Washington', comparative_scheme: 'pure_comparative' },
   ]);
-  // NOTE: verify these citations/lengths against current law before relying on them.
+  // STARTING VALUES — an attorney must verify each row against current statute for the
+  // relevant jurisdiction and claim type before relying on them in production.
+  // v1 limitations: minor-tolling (A.R.S. § 12-502 in AZ) and government notice-of-claim
+  // windows (e.g. 180-day A.R.S. § 12-821.01) are NOT auto-computed — the firm tracks
+  // those deadlines manually via the Deadlines tab.
   await db.from('sol_rules').upsert([
     { jurisdiction:'AZ', claim:'mva',            years:2, citation:'A.R.S. § 12-542', notice_days:null },
     { jurisdiction:'AZ', claim:'negligence',     years:2, citation:'A.R.S. § 12-542', notice_days:null },
     { jurisdiction:'AZ', claim:'slip_and_fall',  years:2, citation:'A.R.S. § 12-542', notice_days:null },
+    { jurisdiction:'AZ', claim:'premises',       years:2, citation:'A.R.S. § 12-542', notice_days:null },
     { jurisdiction:'AZ', claim:'dog_bite',       years:1, citation:'A.R.S. § 11-1025 / 12-541', notice_days:null },
     { jurisdiction:'AZ', claim:'wrongful_death', years:2, citation:'A.R.S. § 12-542', notice_days:null },
     { jurisdiction:'AZ', claim:'other',          years:2, citation:'A.R.S. § 12-542', notice_days:180, notes:'Govt defendant: 180-day notice of claim (A.R.S. § 12-821.01)' },

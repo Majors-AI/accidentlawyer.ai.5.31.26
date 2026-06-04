@@ -16,6 +16,8 @@ export default function CaseDetail() {
   const [approvals, setApprovals] = useState<any[]>([]);
   const [tab, setTab] = useState('overview');
   const [msg, setMsg] = useState('');
+  const [policyForm, setPolicyForm] = useState({ kind: 'adverse_liability', carrier: '', policy_number: '', limits: '' });
+  const [addingPolicy, setAddingPolicy] = useState(false);
 
   async function load() {
     const { data } = await supabase.from('cases').select('*, clients(*)').eq('id', id).single();
@@ -57,6 +59,23 @@ export default function CaseDetail() {
     await supabase.from('cases').update({ status, attorney_id: profile?.id,
       fee_pct: status==='accepted' ? 0.3333 : null }).eq('id', id);
     if (status === 'accepted') {
+      // SOL auto-compute: look up rule for this jurisdiction + claim type and write sol_date.
+      // Silently skipped if no rule found, no DOL, or lookup errors — acceptance must not block.
+      try {
+        const { data: rule } = await supabase
+          .from('sol_rules')
+          .select('years, citation')
+          .eq('jurisdiction', c.jurisdiction)
+          .eq('claim', c.claim)
+          .maybeSingle();
+        if (rule && c.date_of_loss) {
+          const sol = new Date(c.date_of_loss);
+          sol.setFullYear(sol.getFullYear() + Number(rule.years));
+          await supabase.from('cases')
+            .update({ sol_date: sol.toISOString().slice(0, 10), sol_citation: rule.citation })
+            .eq('id', id);
+        }
+      } catch (_) { /* SOL lookup failure does not block acceptance */ }
       // Agent drafts the acceptance email; it goes to the approval inbox, not out the door.
       await supabase.from('communications').insert({
         case_id: id, channel: 'email', requires_approval: true, status: 'queued', drafted_by: 'agent',
@@ -65,6 +84,20 @@ export default function CaseDetail() {
       });
       setMsg('Accepted. Acceptance email + fee agreement drafted and queued for your release in the Approval inbox.');
     } else setMsg('Case denied.');
+    load();
+  }
+
+  async function addPolicy() {
+    setAddingPolicy(true);
+    await supabase.from('insurance_policies').insert({
+      case_id: id,
+      kind: policyForm.kind,
+      carrier: policyForm.carrier || null,
+      policy_number: policyForm.policy_number || null,
+      limits: policyForm.limits ? Number(policyForm.limits) : null,
+    });
+    setPolicyForm({ kind: 'adverse_liability', carrier: '', policy_number: '', limits: '' });
+    setAddingPolicy(false);
     load();
   }
 
@@ -185,6 +218,38 @@ export default function CaseDetail() {
             <td>{p.verified?<span className="tag good tiny">verified</span>:<span className="tag warn tiny">pending</span>}</td></tr>
           ))}{policies.length===0 && <tr><td colSpan={4} className="muted">No policies recorded.</td></tr>}</tbody>
         </table>
+        <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid var(--line)'}}>
+          <h4 style={{fontSize:14,fontFamily:'var(--sans)',fontWeight:600,marginBottom:10}}>Add policy</h4>
+          <div className="row">
+            <div>
+              <label>Kind</label>
+              <select value={policyForm.kind} onChange={e=>setPolicyForm(f=>({...f,kind:e.target.value}))}>
+                <option value="adverse_liability">adverse liability</option>
+                <option value="client_um_uim">client UM / UIM</option>
+                <option value="health">health</option>
+                <option value="pip_medpay">PIP / MedPay</option>
+                <option value="umbrella">umbrella</option>
+              </select>
+            </div>
+            <div>
+              <label>Carrier</label>
+              <input value={policyForm.carrier} onChange={e=>setPolicyForm(f=>({...f,carrier:e.target.value}))} placeholder="Carrier name" />
+            </div>
+          </div>
+          <div className="row">
+            <div>
+              <label>Policy number</label>
+              <input value={policyForm.policy_number} onChange={e=>setPolicyForm(f=>({...f,policy_number:e.target.value}))} placeholder="Policy #" />
+            </div>
+            <div>
+              <label>Limits ($)</label>
+              <input type="number" min="0" value={policyForm.limits} onChange={e=>setPolicyForm(f=>({...f,limits:e.target.value}))} placeholder="0" />
+            </div>
+          </div>
+          <button className="btn sm" style={{marginTop:10}} onClick={addPolicy} disabled={addingPolicy}>
+            {addingPolicy ? 'Saving…' : 'Add policy'}
+          </button>
+        </div>
       </div>}
 
       {['treatment','demand','money','lit'].includes(tab) && <div className="card">
