@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../App';
+import { useAuth, isFirm } from '../../App';
+import { inviteUser } from '../../lib/inviteUser';
 import MessageThread from '../../components/MessageThread';
 import FileCabinet from '../../components/FileCabinet';
 import MoneyTab from './case-detail/MoneyTab';
@@ -38,6 +39,8 @@ export default function CaseDetail() {
   const [demandAmt, setDemandAmt] = useState('');
   const [demandBody, setDemandBody] = useState('');
   const [savingDemand, setSavingDemand] = useState(false);
+  const [invitingClient, setInvitingClient] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   async function load() {
     const { data } = await supabase.from('cases').select('*, clients(*)').eq('id', id).single();
@@ -224,6 +227,22 @@ export default function CaseDetail() {
     load();
   }
 
+  async function sendClientInvite() {
+    if (!c.clients?.email || !c.clients?.full_name || !c.clients?.id) return;
+    setInvitingClient(true);
+    setInviteResult(null);
+    const res = await inviteUser({
+      email: c.clients.email,
+      full_name: c.clients.full_name,
+      role: 'client',
+      client_id: c.clients.id,
+    });
+    setInviteResult(res.ok
+      ? { ok: true, msg: 'Invite sent. Client will receive an email to set up their portal access.' }
+      : { ok: false, msg: res.error ?? 'Invite failed' });
+    setInvitingClient(false);
+  }
+
   function generateDemandDraft() {
     const amt = demandAmt ? Number(demandAmt) : computedDemand;
     setDemandBody(
@@ -308,6 +327,19 @@ export default function CaseDetail() {
           <dt>SOL date</dt><dd>{c.sol_date ?? '—'} <span className="muted small">{c.sol_citation}</span></dd>
           <dt>Facts</dt><dd>{c.narrative ?? '—'}</dd>
         </dl>
+        {isFirm(profile?.role) && c.clients?.email && (
+          <div style={{marginTop:16,paddingTop:14,borderTop:'1px solid var(--line)'}}>
+            <h4 style={{fontSize:14,fontFamily:'var(--sans)',fontWeight:600,margin:'0 0 8px'}}>Client portal</h4>
+            <button className="btn sm" onClick={sendClientInvite} disabled={invitingClient}>
+              {invitingClient ? 'Sending invite...' : 'Invite client to portal'}
+            </button>
+            {inviteResult && (
+              <p className="small" style={{marginTop:6,color:inviteResult.ok?'var(--good)':'var(--bad)'}}>
+                {inviteResult.msg}
+              </p>
+            )}
+          </div>
+        )}
         {['lead','under_review','info_requested'].includes(c.status) && <div style={{marginTop:16,display:'flex',gap:10}}>
           <button className="btn oxblood" onClick={()=>decide('accepted')}
             disabled={conflict?.result==='conflict'}>Accept case</button>
