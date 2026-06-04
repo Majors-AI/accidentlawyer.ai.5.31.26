@@ -5,6 +5,8 @@ import { useAuth } from '../../App';
 import MessageThread from '../../components/MessageThread';
 import FileCabinet from '../../components/FileCabinet';
 import MoneyTab from './case-detail/MoneyTab';
+import LitTab from './case-detail/LitTab';
+import CaseClosure from './case-detail/CaseClosure';
 
 const STAGES = ['lead','under_review','accepted','treating','demand','settlement','litigation','closed'];
 const DEMAND_STATUSES = ['draft','attorney_review','client_review','approved','sent'];
@@ -312,6 +314,7 @@ export default function CaseDetail() {
           {conflict?.result==='conflict' && <span className="muted small" style={{alignSelf:'center'}}>Blocked: conflict found.</span>}
           {conflict?.result!=='clear' && conflict?.result!=='conflict' && <span className="muted small" style={{alignSelf:'center'}}>Run conflicts check first.</span>}
         </div>}
+        {['settlement','litigation','closed'].includes(c.status) && <CaseClosure caseId={id!} c={c} onClosed={load} />}
       </div>}
 
       {tab==='approvals' && <div className="card">
@@ -562,12 +565,7 @@ export default function CaseDetail() {
 
       {tab==='money' && <MoneyTab caseId={id!} c={c} treatTotal={treatTotal} providers={providers} />}
 
-      {tab==='lit' && <div className="card">
-        <div className="scaffold">
-          <b>Litigation &amp; pleadings</b><br/>
-          This module's tables exist in the database and are wired into the data model; the working UI is the next build pass. Nothing here will require migration — it slots onto the schema that's already live.
-        </div>
-      </div>}
+      {tab==='lit' && <LitTab caseId={id!} c={c} />}
     </>
   );
 }
