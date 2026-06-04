@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../App';
+import { subpoenaRecords } from '../../../lib/accidentDoctorBridge';
 
 interface Props {
   caseId: string;
@@ -7,6 +9,7 @@ interface Props {
 }
 
 export default function LitTab({ caseId }: Props) {
+  const { profile } = useAuth();
   const [lit, setLit] = useState<any>(null);
   const [pleadings, setPleadings] = useState<any[]>([]);
   const [mediation, setMediation] = useState<any>(null);
@@ -19,6 +22,9 @@ export default function LitTab({ caseId }: Props) {
 
   const [medForm, setMedForm] = useState({ scheduled: '', resolution: '' });
   const [savingMed, setSavingMed] = useState(false);
+
+  const [subpoenaing, setSubpoenaing] = useState(false);
+  const [subpoenaMsg, setSubpoenaMsg] = useState('');
 
   const PLEADING_STATUSES = ['draft', 'filed', 'served'];
 
@@ -105,6 +111,24 @@ export default function LitTab({ caseId }: Props) {
     load();
   }
 
+  async function handleSubpoena() {
+    setSubpoenaing(true);
+    setSubpoenaMsg('');
+    const records = await subpoenaRecords(caseId);
+    for (const rec of records) {
+      await supabase.from('documents').insert({
+        case_id: caseId,
+        name: rec.name,
+        category: 'medical',
+        storage_path: null,
+        uploaded_by: profile?.id ?? null,
+      });
+    }
+    setSubpoenaMsg('Pulled ' + records.length + ' record(s) via subpoena (demo data). Visible in File cabinet.');
+    setSubpoenaing(false);
+    load();
+  }
+
   async function toggleMedApproved() {
     if (!mediation) return;
     await supabase.from('mediations').update({ client_approved: !mediation.client_approved }).eq('id', mediation.id);
@@ -130,9 +154,15 @@ export default function LitTab({ caseId }: Props) {
             <input value={litForm.cause_number} onChange={e => setLitForm(f => ({ ...f, cause_number: e.target.value }))} placeholder="CV-2024-000000" />
           </div>
         </div>
-        <button className="btn sm" style={{ marginTop: 12 }} onClick={saveLit} disabled={savingLit}>
-          {savingLit ? 'Saving...' : lit ? 'Update record' : 'Create record'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          <button className="btn sm" onClick={saveLit} disabled={savingLit}>
+            {savingLit ? 'Saving...' : lit ? 'Update record' : 'Create record'}
+          </button>
+          <button className="btn sm ghost" onClick={handleSubpoena} disabled={subpoenaing}>
+            {subpoenaing ? 'Pulling...' : 'Subpoena records (AccidentDoctor.AI) (demo)'}
+          </button>
+        </div>
+        {subpoenaMsg && <p className="small" style={{ margin: '8px 0 0', color: 'var(--good)' }}>{subpoenaMsg}</p>}
       </div>
 
       {/* b: Pleadings */}
