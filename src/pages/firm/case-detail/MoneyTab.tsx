@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { requestReduction } from '../../../lib/accidentDoctorBridge';
 
 // lien_type enum + values added in 06_enum_extensions.sql
 const LIEN_TYPES = ['medicare','medicaid','erisa','hospital','pip_medpay','ahcccs','provider','other'];
@@ -26,6 +27,7 @@ export default function MoneyTab({ caseId, c, treatTotal, providers }: Props) {
   const [redForm, setRedForm] = useState({ provider_id: '', original: '', requested: '' });
   const [addingRed, setAddingRed] = useState(false);
   const [editRed, setEditRed] = useState<any>(null);
+  const [reqRedId, setReqRedId] = useState<string | null>(null);
 
   const [gross, setGross] = useState('');
   const [fees, setFees] = useState('');
@@ -119,6 +121,22 @@ export default function MoneyTab({ caseId, c, treatTotal, providers }: Props) {
     });
     setRedForm({ provider_id: '', original: '', requested: '' });
     setAddingRed(false);
+    load();
+  }
+
+  async function handleRequestReduction(r: any) {
+    setReqRedId(r.id);
+    const response = await requestReduction({
+      original: Number(r.original) || 0,
+      requested: Number(r.requested) || 0,
+      providerName: r.providers?.name ?? '',
+    });
+    await supabase.from('reductions').update({
+      agreed: response.agreed,
+      status: 'countered',
+      last_contact: new Date().toISOString().slice(0, 10),
+    }).eq('id', r.id);
+    setReqRedId(null);
     load();
   }
 
@@ -290,7 +308,12 @@ export default function MoneyTab({ caseId, c, treatTotal, providers }: Props) {
                 <td className="small">{r.requested ? '$' + Number(r.requested).toLocaleString() : '--'}</td>
                 <td className="small">{r.agreed ? '$' + Number(r.agreed).toLocaleString() : '--'}</td>
                 <td><span className={`tag tiny ${r.status==='agreed'?'good':r.status==='refused'?'bad':'gold'}`}>{r.status}</span></td>
-                <td><button className="btn sm ghost" onClick={()=>setEditRed({id:r.id,agreed:String(r.agreed??''),status:r.status})}>Edit</button></td>
+                <td style={{whiteSpace:'nowrap'}}>
+                  <button className="btn sm ghost" style={{marginRight:4}} onClick={()=>setEditRed({id:r.id,agreed:String(r.agreed??''),status:r.status})}>Edit</button>
+                  <button className="btn sm ghost" onClick={()=>handleRequestReduction(r)} disabled={reqRedId===r.id}>
+                    {reqRedId===r.id ? 'Requesting...' : 'Request via AccidentDoctor.AI (demo)'}
+                  </button>
+                </td>
               </tr>
             ))}
             {reductions.length === 0 && <tr><td colSpan={6} className="muted">No reductions recorded.</td></tr>}
@@ -337,21 +360,21 @@ export default function MoneyTab({ caseId, c, treatTotal, providers }: Props) {
         )}
         <div className="row">
           <div>
-            <label>Gross settlement ($){fundedOffer ? ' — auto from funded/approved offer' : ''}</label>
+            <label>Gross settlement ($){fundedOffer ? ' -- auto from funded/approved offer' : ''}</label>
             <input type="number" min="0" value={gross} placeholder={String(wsGross)} onChange={e=>setGross(e.target.value)} />
           </div>
           <div>
-            <label>Attorney fees ($) — {feeLabel}</label>
+            <label>Attorney fees ($) -- {feeLabel}</label>
             <input type="number" min="0" value={fees} placeholder={String(Math.round(wsFees))} onChange={e=>setFees(e.target.value)} />
           </div>
         </div>
         <div className="row">
           <div>
-            <label>Medical {reductionsMedical !== null ? '— from reductions' : '— from treatment total'} ($)</label>
+            <label>Medical {reductionsMedical !== null ? '-- from reductions' : '-- from treatment total'} ($)</label>
             <input type="number" min="0" value={medical} placeholder={String(wsMedical)} onChange={e=>setMedical(e.target.value)} />
           </div>
           <div>
-            <label>Liens total ($) — sum of liens above</label>
+            <label>Liens total ($) -- sum of liens above</label>
             <input type="number" readOnly value={liensTotal} style={{background:'var(--paper)',color:'var(--ink-soft)'}} />
           </div>
         </div>

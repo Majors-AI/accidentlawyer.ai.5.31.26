@@ -43,3 +43,48 @@ export async function detectDischarge(_caseId: string): Promise<DischargeEvent> 
     dischargeDate: '2025-05-01',
   };
 }
+
+// -- Scene 13: reduction portal --
+
+export interface ReductionResponse {
+  decision: 'countered';
+  agreed: number;
+  note: string;
+}
+
+export async function requestReduction(input: {
+  original: number;
+  requested: number;
+  providerName: string;
+}): Promise<ReductionResponse> {
+  const midpoint = Math.round((input.original + input.requested) / 2);
+  return {
+    decision: 'countered',
+    agreed: midpoint,
+    note: input.providerName + ' (DEMO) counters at $' + midpoint.toLocaleString() +
+      ' -- midpoint between original and requested. Accept or negotiate further via the edit form.',
+  };
+}
+
+// -- Scene 14: subpoena records --
+
+export interface SubpoenaRecord {
+  providerName: string;
+  recordType: string;
+  name: string;
+}
+
+export async function subpoenaRecords(_caseId: string): Promise<SubpoenaRecord[]> {
+  return [
+    {
+      providerName: 'Desert Spine & Rehab (DEMO)',
+      recordType: 'Treatment notes',
+      name: 'Desert Spine Rehab -- treatment notes (subpoena) (DEMO).pdf',
+    },
+    {
+      providerName: 'Valley Imaging Center (DEMO)',
+      recordType: 'Imaging report',
+      name: 'Valley Imaging Center -- MRI report (subpoena) (DEMO).pdf',
+    },
+  ];
+}
