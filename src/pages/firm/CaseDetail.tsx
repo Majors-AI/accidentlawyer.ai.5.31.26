@@ -6,6 +6,7 @@ import MessageThread from '../../components/MessageThread';
 import FileCabinet from '../../components/FileCabinet';
 
 const STAGES = ['lead','under_review','accepted','treating','demand','settlement','litigation','closed'];
+const DEMAND_STATUSES = ['draft','attorney_review','client_review','approved','sent'];
 
 export default function CaseDetail() {
   const { id } = useParams();
@@ -26,6 +27,13 @@ export default function CaseDetail() {
   const [editTx, setEditTx] = useState<any>(null);
   const [fuForm, setFuForm] = useState({ label: '', due_at: '' });
   const [addingFu, setAddingFu] = useState(false);
+  const [demand, setDemand] = useState<any>(null);
+  const [wageLoss, setWageLoss] = useState(0);
+  const [multiplier, setMultiplier] = useState('3');
+  const [futureCare, setFutureCare] = useState('0');
+  const [demandAmt, setDemandAmt] = useState('');
+  const [demandBody, setDemandBody] = useState('');
+  const [savingDemand, setSavingDemand] = useState(false);
 
   async function load() {
     const { data } = await supabase.from('cases').select('*, clients(*)').eq('id', id).single();
@@ -40,6 +48,15 @@ export default function CaseDetail() {
     setTreatments(tx ?? []);
     const { data: fu } = await supabase.from('follow_ups').select('*').eq('case_id', id).order('due_at',{ascending:true});
     setFollowUps(fu ?? []);
+    const { data: dm } = await supabase.from('demands').select('*').eq('case_id', id).order('created_at',{ascending:false}).limit(1);
+    const latestDemand = dm?.[0] ?? null;
+    setDemand(latestDemand);
+    if (latestDemand) {
+      setDemandAmt(String(latestDemand.amount ?? ''));
+      setDemandBody(latestDemand.body ?? '');
+    }
+    const { data: wl } = await supabase.from('journal_entries').select('amount').eq('case_id', id).eq('kind','lost_wages');
+    setWageLoss((wl ?? []).reduce((s: number, j: any) => s + (Number(j.amount) || 0), 0));
   }
   useEffect(() => { load(); }, [id]);
   useEffect(() => {
@@ -52,6 +69,10 @@ export default function CaseDetail() {
   // --- decision-engine signal: should we consider dropping? ---
   const adverse = policies.find(p=>p.kind==='adverse_liability');
   const treatTotal = treatments.reduce((s, t) => s + (Number(t.total_billed) || 0), 0);
+  const specialsTotal = treatTotal + wageLoss;
+  const generalDamages = specialsTotal * (Number(multiplier) || 0);
+  const futureCareNum = Number(futureCare) || 0;
+  const computedDemand = specialsTotal + generalDamages + futureCareNum;
   const reasons: string[] = [];
   if (c.liability_disputed && (c.accepted_fault_pct ?? 100) < 50) reasons.push(`Adverse accepts only ${c.accepted_fault_pct}% fault`);
   if (c.limits_issue) reasons.push('Limits issue flagged');
@@ -177,6 +198,47 @@ export default function CaseDetail() {
       { case_id: id, label: '30 day',      due_at: new Date(now + 30*864e5).toISOString() },
     ]);
     load();
+  }
+
+  async function saveDemand() {
+    setSavingDemand(true);
+    const amount = demandAmt ? Number(demandAmt) : computedDemand;
+    if (demand) {
+      await supabase.from('demands').update({ amount, body: demandBody }).eq('id', demand.id);
+    } else {
+      await supabase.from('demands').insert({ case_id: id, amount, body: demandBody, status: 'draft', sol_noted: false });
+    }
+    setSavingDemand(false);
+    load();
+  }
+
+  async function advanceDemandStatus() {
+    if (!demand) return;
+    const idx = DEMAND_STATUSES.indexOf(demand.status);
+    if (idx < 0 || idx >= DEMAND_STATUSES.length - 1) return;
+    await supabase.from('demands').update({ status: DEMAND_STATUSES[idx + 1] }).eq('id', demand.id);
+    load();
+  }
+
+  function generateDemandDraft() {
+    const amt = demandAmt ? Number(demandAmt) : computedDemand;
+    setDemandBody(
+      'DEMAND FOR SETTLEMENT\n' +
+      'Client: ' + (c.clients?.full_name ?? '') + '\n' +
+      'Date of Loss: ' + (c.date_of_loss ?? '') + '\n' +
+      'Claim: ' + ((c.claim ?? '').replace(/_/g, ' ')) + '\n\n' +
+      'LIABILITY\n[Describe liability facts and defendant\'s negligence here.]\n\n' +
+      'INJURIES & TREATMENT\n[Describe injuries sustained and course of treatment here.]\n\n' +
+      'DAMAGES\n' +
+      'Medical specials:          $' + treatTotal.toLocaleString() + '\n' +
+      'Wage loss:                 $' + wageLoss.toLocaleString() + '\n' +
+      'Specials total:            $' + specialsTotal.toLocaleString() + '\n' +
+      'General damages (x' + multiplier + '):  $' + generalDamages.toLocaleString() + '\n' +
+      'Future care:               $' + futureCareNum.toLocaleString() + '\n\n' +
+      'TOTAL DEMAND:              $' + amt.toLocaleString() + '\n\n' +
+      'This demand is made without prejudice and expires 30 days from the date of this letter.\n' +
+      '[Replace this skeleton with the firm\'s reviewed demand template as needed.]'
+    );
   }
 
   const Tab = ({id:t,label}:{id:string;label:string}) =>
@@ -450,9 +512,56 @@ export default function CaseDetail() {
         </div>
       </>}
 
-      {['demand','money','lit'].includes(tab) && <div className="card">
+      {tab==='demand' && <div className="card">
+        <h3>Demand builder</h3>
+        {/* v1: multiplier and future_care are builder inputs captured in the body text and
+            final amount only — not persisted as separate columns; no migration needed. */}
+        <div style={{marginBottom:14}}>
+          {demand && <span className={`tag tiny ${demand.status==='sent'||demand.status==='approved'?'good':demand.status==='client_review'?'gold':'soft'}`} style={{marginRight:8}}>{demand.status.replace(/_/g,' ')}</span>}
+          {demand && DEMAND_STATUSES.indexOf(demand.status) < DEMAND_STATUSES.length-1 &&
+            <button className="btn sm ghost" onClick={advanceDemandStatus}>
+              Advance to {DEMAND_STATUSES[DEMAND_STATUSES.indexOf(demand.status)+1].replace(/_/g,' ')}
+            </button>}
+        </div>
+        <div style={{background:'var(--paper)',border:'1px solid var(--line)',borderRadius:9,padding:'12px 16px',marginBottom:16}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'8px 24px',fontSize:14}}>
+            <div><span className="muted small">Medical specials</span><br/><b>${treatTotal.toLocaleString()}</b></div>
+            <div><span className="muted small">Wage loss</span><br/><b>${wageLoss.toLocaleString()}</b></div>
+            <div><span className="muted small">Specials total</span><br/><b>${specialsTotal.toLocaleString()}</b></div>
+          </div>
+        </div>
+        <div className="row">
+          <div>
+            <label>General damages multiplier</label>
+            <input type="number" min="0" step="0.5" value={multiplier} onChange={e=>setMultiplier(e.target.value)} />
+            <span className="muted small" style={{marginTop:4,display:'block'}}>General damages: ${generalDamages.toLocaleString()}</span>
+          </div>
+          <div>
+            <label>Future care ($)</label>
+            <input type="number" min="0" value={futureCare} onChange={e=>setFutureCare(e.target.value)} />
+          </div>
+        </div>
+        <div style={{marginTop:12}}>
+          <label>Demand amount ($)</label>
+          <input type="number" min="0" value={demandAmt} placeholder={String(computedDemand)} onChange={e=>setDemandAmt(e.target.value)} />
+          <span className="muted small" style={{marginTop:4,display:'block'}}>Computed: ${computedDemand.toLocaleString()} — leave blank to use, or type to override.</span>
+        </div>
+        <div style={{marginTop:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+            <label style={{margin:0}}>Demand letter body</label>
+            <button className="btn sm ghost" onClick={generateDemandDraft}>Generate draft</button>
+          </div>
+          <p className="muted small" style={{margin:'0 0 6px'}}>The firm's reviewed demand template can replace this skeleton. Edit freely before saving.</p>
+          <textarea value={demandBody} onChange={e=>setDemandBody(e.target.value)} rows={18} style={{width:'100%',fontFamily:'monospace',fontSize:13,lineHeight:1.5}} />
+        </div>
+        <button className="btn sm" style={{marginTop:10}} onClick={saveDemand} disabled={savingDemand}>
+          {savingDemand ? 'Saving...' : demand ? 'Save changes' : 'Create demand'}
+        </button>
+      </div>}
+
+      {['money','lit'].includes(tab) && <div className="card">
         <div className="scaffold">
-          <b>{ {demand:'Demand builder',money:'Settlement, reductions, liens & trust accounting',lit:'Litigation & pleadings'}[tab as any] }</b><br/>
+          <b>{ {money:'Settlement, reductions, liens & trust accounting',lit:'Litigation & pleadings'}[tab as any] }</b><br/>
           This module's tables exist in the database and are wired into the data model; the working UI is the next build pass. Nothing here will require migration — it slots onto the schema that's already live.
         </div>
       </div>}
