@@ -4,3 +4,4 @@ dist
 ala/
 supabase/.dburl
 scripts/_apply.mjs
+*.tsbuildinfo
