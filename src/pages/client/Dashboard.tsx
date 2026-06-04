@@ -19,6 +19,7 @@ export default function ClientDashboard() {
   const [kase, setKase] = useState<any>(null);
   const [follow, setFollow] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<any[]>([]);
+  const [treatments, setTreatments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function loadApprovals(caseId: string) {
@@ -34,6 +35,8 @@ export default function ClientDashboard() {
         const { data: fu } = await supabase.from('follow_ups').select('*').eq('case_id', data[0].id).order('due_at');
         setFollow(fu ?? []);
         loadApprovals(data[0].id);
+        const { data: trt } = await supabase.from('treatments').select('*').eq('case_id', data[0].id).order('scheduled_at', {ascending: true});
+        setTreatments(trt ?? []);
       }
     }
     setLoading(false);
@@ -60,11 +63,72 @@ export default function ClientDashboard() {
 
   const idx = order.indexOf(kase.status === 'litigation' ? 'demand' : kase.status);
 
+  // SOL countdown (days from today to sol_date)
+  const solDays = kase.sol_date
+    ? Math.ceil((new Date(kase.sol_date + 'T12:00:00').getTime() - Date.now()) / 86400000)
+    : null;
+
+  // Next upcoming treatment appointment
+  const now = new Date();
+  const nextAppt = treatments
+    .filter(t => t.scheduled_at && new Date(t.scheduled_at) >= now)
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0];
+
+  // Running medical bills total
+  const billsTotal = treatments.reduce((s, t) => s + (Number(t.total_billed) || 0), 0);
+
   return (
     <>
       <div className="page-h"><div><h1>Your case</h1>
         <div className="sub">{(kase.claim??'').replace(/_/g,' ')} · filed {new Date(kase.created_at).toLocaleDateString()}</div></div>
         <span className="tag good">{kase.status.replace(/_/g,' ')}</span></div>
+
+      {/* ---- At-a-glance metrics ---- */}
+      <div className="grid three" style={{marginBottom:16}}>
+        <div className="card" style={{marginBottom:0}}>
+          <div className="muted tiny" style={{textTransform:'uppercase',letterSpacing:'.08em',marginBottom:6}}>SOL deadline</div>
+          {solDays != null ? (
+            <>
+              <div style={{fontSize:22,fontWeight:600,fontFamily:'var(--serif)',color: solDays < 180 ? 'var(--bad)' : 'var(--good)'}}>
+                {solDays.toLocaleString()} days
+              </div>
+              <div className="muted tiny">{new Date(kase.sol_date + 'T12:00:00').toLocaleDateString()}</div>
+            </>
+          ) : <span className="muted small">—</span>}
+        </div>
+        <div className="card" style={{marginBottom:0}}>
+          <div className="muted tiny" style={{textTransform:'uppercase',letterSpacing:'.08em',marginBottom:6}}>Next appointment</div>
+          {nextAppt ? (
+            <>
+              <div style={{fontSize:15,fontWeight:600}}>
+                {new Date(nextAppt.scheduled_at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+              </div>
+              <div className="muted tiny" style={{marginTop:2}}>{nextAppt.status}</div>
+            </>
+          ) : <span className="muted small">None scheduled</span>}
+        </div>
+        <div className="card" style={{marginBottom:0}}>
+          <div className="muted tiny" style={{textTransform:'uppercase',letterSpacing:'.08em',marginBottom:6}}>Bills to date</div>
+          <div style={{fontSize:22,fontWeight:600,fontFamily:'var(--serif)'}}>
+            ${billsTotal.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}
+          </div>
+          <div className="muted tiny">{treatments.length} provider record{treatments.length !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+
+      {/* ---- Quick links ---- */}
+      <div className="grid three" style={{marginBottom:16}}>
+        {([
+          ['/journal',    'Injury journal',  'Log daily pain and symptoms.'],
+          ['/wage-loss',  'Wage loss',        'Track income lost to your injury.'],
+          ['/treatment',  'Treatment',        'Your providers and appointments.'],
+        ] as [string,string,string][]).map(([to, title, desc]) => (
+          <div key={to} className="card clickable" style={{marginBottom:0}} onClick={()=>nav(to)}>
+            <div style={{fontWeight:600,fontFamily:'var(--serif)',fontSize:16,marginBottom:4}}>{title}</div>
+            <div className="small muted">{desc}</div>
+          </div>
+        ))}
+      </div>
 
       {approvals.filter(a=>a.status==='requested').length>0 && (
         <div className="card" style={{borderColor:'var(--oxblood)'}}>

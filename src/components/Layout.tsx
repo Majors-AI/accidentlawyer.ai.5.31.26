@@ -36,6 +36,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <nav className="nav">
             <div className="group">My case</div>
             <NavLink to="/" end className={({isActive})=>isActive?'active':''}>Dashboard</NavLink>
+            <NavLink to="/journal" className={({isActive})=>isActive?'active':''}>Injury journal</NavLink>
+            <NavLink to="/wage-loss" className={({isActive})=>isActive?'active':''}>Wage loss</NavLink>
+            <NavLink to="/treatment" className={({isActive})=>isActive?'active':''}>Treatment</NavLink>
             <NavLink to="/messages" className={({isActive})=>isActive?'active':''}>Messages</NavLink>
             <NavLink to="/setup" className={({isActive})=>isActive?'active':''}>Engagement & setup</NavLink>
             <NavLink to="/intake" className={({isActive})=>isActive?'active':''}>Edit intake</NavLink>
