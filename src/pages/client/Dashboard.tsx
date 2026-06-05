@@ -178,13 +178,15 @@ export default function ClientDashboard() {
       )}
 
       {/* ---- Settlement / disbursement summary (settlement or closed status only) ---- */}
-      {showSettlementCard && settlement && (
+      {showSettlementCard && (settlement || disbursement) && (
         <div className="card" style={{borderColor:'var(--good)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14}}>
             <h3 style={{margin:0}}>Settlement</h3>
-            <span className={`tag ${settlementTagClass(settlement.status)}`}>
-              {settlement.status}
-            </span>
+            {settlement && (
+              <span className={`tag ${settlementTagClass(settlement.status)}`}>
+                {settlement.status}
+              </span>
+            )}
           </div>
 
           {disbursement ? (
@@ -219,7 +221,7 @@ export default function ClientDashboard() {
                 )}
               </div>
             </>
-          ) : (
+          ) : settlement ? (
             <>
               <dl className="kv">
                 <dt>Offer amount</dt>
@@ -229,7 +231,7 @@ export default function ClientDashboard() {
                 Your attorney is finalizing the breakdown. Check back soon or ask in Messages.
               </p>
             </>
-          )}
+          ) : null}
         </div>
       )}
 
