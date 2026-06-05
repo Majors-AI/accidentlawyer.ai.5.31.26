@@ -7,6 +7,7 @@ import MessageThread from '../../components/MessageThread';
 import FileCabinet from '../../components/FileCabinet';
 import MoneyTab from './case-detail/MoneyTab';
 import LitTab from './case-detail/LitTab';
+import CalendarTab from './case-detail/CalendarTab';
 import CaseClosure from './case-detail/CaseClosure';
 import ProviderBridge from './case-detail/ProviderBridge';
 
@@ -114,9 +115,17 @@ export default function CaseDetail() {
         if (rule && c.date_of_loss) {
           const sol = new Date(c.date_of_loss);
           sol.setFullYear(sol.getFullYear() + Number(rule.years));
+          const solDate = sol.toISOString().slice(0, 10);
           await supabase.from('cases')
-            .update({ sol_date: sol.toISOString().slice(0, 10), sol_citation: rule.citation })
+            .update({ sol_date: solDate, sol_citation: rule.citation })
             .eq('id', id);
+          const { data: existingSol } = await supabase.from('deadlines')
+            .select('id').eq('case_id', id).eq('type', 'sol').maybeSingle();
+          if (!existingSol) {
+            await supabase.from('deadlines').insert({
+              case_id: id, type: 'sol', due_at: solDate, label: 'Statute of limitations',
+            });
+          }
         }
       } catch (_) { /* SOL lookup failure does not block acceptance */ }
       // Agent drafts the acceptance email; it goes to the approval inbox, not out the door.
@@ -223,7 +232,19 @@ export default function CaseDetail() {
     if (!demand) return;
     const idx = DEMAND_STATUSES.indexOf(demand.status);
     if (idx < 0 || idx >= DEMAND_STATUSES.length - 1) return;
-    await supabase.from('demands').update({ status: DEMAND_STATUSES[idx + 1] }).eq('id', demand.id);
+    const nextStatus = DEMAND_STATUSES[idx + 1];
+    await supabase.from('demands').update({ status: nextStatus }).eq('id', demand.id);
+    if (nextStatus === 'sent') {
+      const { data: existingDr } = await supabase.from('deadlines')
+        .select('id').eq('case_id', id).eq('type', 'demand_reply').maybeSingle();
+      if (!existingDr) {
+        const d = new Date();
+        d.setDate(d.getDate() + 30);
+        await supabase.from('deadlines').insert({
+          case_id: id, type: 'demand_reply', due_at: d.toISOString().slice(0, 10), label: 'Demand reply due',
+        });
+      }
+    }
     load();
   }
 
@@ -310,6 +331,7 @@ export default function CaseDetail() {
         <Tab id="demand" label="Demand" />
         <Tab id="money" label="Settlement & trust" />
         <Tab id="lit" label="Litigation" />
+        <Tab id="calendar" label="Calendar & deadlines" />
       </div>
 
       {tab==='messages' && <div className="card">
@@ -600,6 +622,8 @@ export default function CaseDetail() {
       {tab==='money' && <MoneyTab caseId={id!} c={c} treatTotal={treatTotal} providers={providers} />}
 
       {tab==='lit' && <LitTab caseId={id!} c={c} />}
+
+      {tab==='calendar' && <CalendarTab caseId={id!} firmId={c.firm_id} />}
     </>
   );
 }
