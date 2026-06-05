@@ -5,3 +5,5 @@ ala/
 supabase/.dburl
 scripts/_apply.mjs
 *.tsbuildinfo
+.env.local
+supabase/.temp/

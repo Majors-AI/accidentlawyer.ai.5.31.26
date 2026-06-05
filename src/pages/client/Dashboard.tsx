@@ -4,14 +4,17 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../App';
 
 const JOURNEY = [
-  ['under_review','Case review','We’re reviewing your submission.'],
-  ['accepted','Accepted','We’re representing you. Watch for your fee agreement.'],
+  ['under_review','Case review',"We're reviewing your submission."],
+  ['accepted','Accepted',"We're representing you. Watch for your fee agreement."],
   ['treating','Treatment','Keep all appointments and journal your pain and lost wages.'],
   ['demand','Demand','We prepare and send your demand for settlement.'],
   ['settlement','Settlement','You review and approve any offer and your disbursement.'],
   ['closed','Resolved','Funds disbursed and your file is closed.'],
 ];
 const order = JOURNEY.map(j=>j[0]);
+
+const fmt = (n: any) =>
+  n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
 
 export default function ClientDashboard() {
   const { profile } = useAuth();
@@ -20,6 +23,8 @@ export default function ClientDashboard() {
   const [follow, setFollow] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<any[]>([]);
   const [treatments, setTreatments] = useState<any[]>([]);
+  const [settlement, setSettlement] = useState<any>(null);
+  const [disbursement, setDisbursement] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   async function loadApprovals(caseId: string) {
@@ -32,11 +37,16 @@ export default function ClientDashboard() {
       const { data } = await supabase.from('cases').select('*').eq('client_id', cl.id).order('created_at',{ascending:false}).limit(1);
       setKase(data?.[0] ?? null);
       if (data?.[0]) {
-        const { data: fu } = await supabase.from('follow_ups').select('*').eq('case_id', data[0].id).order('due_at');
+        const caseId = data[0].id;
+        const { data: fu } = await supabase.from('follow_ups').select('*').eq('case_id', caseId).order('due_at');
         setFollow(fu ?? []);
-        loadApprovals(data[0].id);
-        const { data: trt } = await supabase.from('treatments').select('*').eq('case_id', data[0].id).order('scheduled_at', {ascending: true});
+        loadApprovals(caseId);
+        const { data: trt } = await supabase.from('treatments').select('*').eq('case_id', caseId).order('scheduled_at', {ascending: true});
         setTreatments(trt ?? []);
+        const { data: s } = await supabase.from('settlements').select('*').eq('case_id', caseId).order('created_at',{ascending:false}).limit(1);
+        setSettlement(s?.[0] ?? null);
+        const { data: d } = await supabase.from('disbursements').select('*').eq('case_id', caseId).order('created_at',{ascending:false}).limit(1);
+        setDisbursement(d?.[0] ?? null);
       }
     }
     setLoading(false);
@@ -51,11 +61,18 @@ export default function ClientDashboard() {
     if (kase) loadApprovals(kase.id);
   }
 
+  async function viewDoc(documentId: string) {
+    const { data: doc } = await supabase.from('documents').select('storage_path').eq('id', documentId).single();
+    if (!doc?.storage_path) return;
+    const { data } = await supabase.storage.from('case-files').createSignedUrl(doc.storage_path, 60);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  }
+
   if (loading) return <div className="muted">Loading…</div>;
   if (!kase) return (
     <>
       <div className="page-h"><div><h1>Welcome, {profile?.full_name?.split(' ')[0]}</h1>
-        <div className="sub">You don’t have a case on file yet.</div></div></div>
+        <div className="sub">You don't have a case on file yet.</div></div></div>
       <div className="card"><p>Start by telling us about your accident.</p>
         <button className="btn oxblood" onClick={()=>nav('/intake')}>Start intake</button></div>
     </>
@@ -76,6 +93,15 @@ export default function ClientDashboard() {
 
   // Running medical bills total
   const billsTotal = treatments.reduce((s, t) => s + (Number(t.total_billed) || 0), 0);
+
+  const showSettlementCard = kase.status === 'settlement' || kase.status === 'closed';
+
+  const settlementTagClass = (s: string) => {
+    if (s === 'funded') return 'good';
+    if (s === 'approved') return 'gold';
+    if (s === 'rejected') return 'bad';
+    return 'soft';
+  };
 
   return (
     <>
@@ -130,18 +156,82 @@ export default function ClientDashboard() {
         ))}
       </div>
 
+      {/* ---- Approvals (with optional document-viewer button) ---- */}
       {approvals.filter(a=>a.status==='requested').length>0 && (
         <div className="card" style={{borderColor:'var(--oxblood)'}}>
           <h3>Needs your approval</h3>
           {approvals.filter(a=>a.status==='requested').map(a=>(
             <div key={a.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--paper-2)'}}>
               <span className="small"><b>{a.title}</b>{a.requires_signature && <span className="tag soft tiny" style={{marginLeft:8}}>signature required</span>}</span>
-              {a.requires_signature
-                ? <button className="btn oxblood sm" onClick={()=>{const n=prompt('Type your full name to sign:'); if(n) act(a,n);}}>Review & sign</button>
-                : <button className="btn oxblood sm" onClick={()=>act(a)}>Approve</button>}
+              <div style={{display:'flex',gap:8,flexShrink:0}}>
+                {a.document_id && (
+                  <button className="btn ghost sm" onClick={()=>viewDoc(a.document_id)}>View document</button>
+                )}
+                {a.requires_signature
+                  ? <button className="btn oxblood sm" onClick={()=>{const n=prompt('Type your full name to sign:'); if(n) act(a,n);}}>Review & sign</button>
+                  : <button className="btn oxblood sm" onClick={()=>act(a)}>Approve</button>}
+              </div>
             </div>
           ))}
-          <p className="muted tiny" style={{marginTop:8}}>Your case can’t move forward until these are handled. You can also discuss them in Messages.</p>
+          <p className="muted tiny" style={{marginTop:8}}>Your case can't move forward until these are handled. You can also discuss them in Messages.</p>
+        </div>
+      )}
+
+      {/* ---- Settlement / disbursement summary (settlement or closed status only) ---- */}
+      {showSettlementCard && (settlement || disbursement) && (
+        <div className="card" style={{borderColor:'var(--good)'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14}}>
+            <h3 style={{margin:0}}>Settlement</h3>
+            {settlement && (
+              <span className={`tag ${settlementTagClass(settlement.status)}`}>
+                {settlement.status}
+              </span>
+            )}
+          </div>
+
+          {disbursement ? (
+            <>
+              <dl className="kv">
+                <dt>Settlement amount</dt>
+                <dd>{fmt(disbursement.settlement_amount)}</dd>
+                <dt>Attorney fees</dt>
+                <dd style={{color:'var(--ink-soft)'}}>− {fmt(disbursement.fees)}</dd>
+                <dt>Medical deductions</dt>
+                <dd style={{color:'var(--ink-soft)'}}>− {fmt(disbursement.medical)}</dd>
+                {disbursement.liens_total != null && Number(disbursement.liens_total) > 0 && (
+                  <>
+                    <dt>Lien deductions</dt>
+                    <dd style={{color:'var(--ink-soft)'}}>− {fmt(disbursement.liens_total)}</dd>
+                  </>
+                )}
+              </dl>
+              <div style={{
+                display:'flex', justifyContent:'space-between', alignItems:'baseline',
+                borderTop:'1px solid var(--line)', paddingTop:12, marginTop:10,
+              }}>
+                <span style={{fontFamily:'var(--serif)',fontWeight:600,fontSize:15}}>Net to you</span>
+                <span style={{fontFamily:'var(--serif)',fontWeight:700,fontSize:24,color:'var(--good)'}}>
+                  {fmt(disbursement.net_to_client)}
+                </span>
+              </div>
+              <div style={{marginTop:10}}>
+                <span className="tag soft tiny">{disbursement.phase} fee schedule</span>
+                {disbursement.client_approved && (
+                  <span className="tag good tiny" style={{marginLeft:8}}>you approved</span>
+                )}
+              </div>
+            </>
+          ) : settlement ? (
+            <>
+              <dl className="kv">
+                <dt>Offer amount</dt>
+                <dd style={{fontWeight:600}}>{fmt(settlement.offer_amount)}</dd>
+              </dl>
+              <p className="muted small" style={{marginTop:12,marginBottom:0}}>
+                Your attorney is finalizing the breakdown. Check back soon or ask in Messages.
+              </p>
+            </>
+          ) : null}
         </div>
       )}
 
@@ -162,7 +252,7 @@ export default function ClientDashboard() {
           <div className="card">
             <h3>What to expect next</h3>
             <p className="small">{JOURNEY[Math.min(idx+1,JOURNEY.length-1)]?.[2]}</p>
-            <p className="muted tiny">Representation covers your personal-injury claim. We’ll also help you track your property-damage claim separately.</p>
+            <p className="muted tiny">Representation covers your personal-injury claim. We'll also help you track your property-damage claim separately.</p>
           </div>
           <div className="card">
             <h3>Check-ins</h3>
