@@ -20,6 +20,7 @@ import Account from './pages/firm/Account';
 import Legacy from './pages/firm/Legacy';
 import Calendar from './pages/firm/Calendar';
 import Templates from './pages/firm/Templates';
+import Reporting from './pages/firm/Reporting';
 import Firms from './pages/admin/Firms';
 
 type Profile = { id: string; full_name: string; email: string; role: string;
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="/legacy" element={<Legacy />} />
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/templates" element={<Templates />} />
+              <Route path="/reporting" element={<Reporting />} />
               <Route path="*" element={<Navigate to="/" />} />
             </>
           ) : (
