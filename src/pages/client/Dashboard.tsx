@@ -14,7 +14,7 @@ const JOURNEY = [
 const order = JOURNEY.map(j=>j[0]);
 
 const fmt = (n: any) =>
-  n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}` : '—';
+  n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
 
 export default function ClientDashboard() {
   const { profile } = useAuth();
