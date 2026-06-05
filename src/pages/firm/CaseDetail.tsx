@@ -276,24 +276,34 @@ export default function CaseDetail() {
       firm_name: '',
     };
 
-    const drafts: Promise<void>[] = [];
+    // Collect subjects already queued/drafted so repeated clicks are idempotent.
+    const { data: existing } = await supabase
+      .from('communications')
+      .select('subject')
+      .eq('case_id', id)
+      .in('status', ['queued', 'draft'])
+      .like('subject', 'Letter of Representation — %');
+    const existingSubjects = new Set((existing ?? []).map((r: any) => r.subject));
+
+    type Recipient = { type: string; subject: string; ctx: Record<string, string>; fallbackBody: string };
+    const recipients: Recipient[] = [];
 
     for (const p of policies.filter(p => p.kind === 'adverse_liability')) {
-      drafts.push(draftLetter({
-        caseId: id!, firmId: c.firm_id, type: 'lor_adverse',
+      recipients.push({
+        type: 'lor_adverse',
         subject: `Letter of Representation — ${p.carrier ?? 'Adverse Carrier'}`,
         ctx: { ...baseCtx, recipient: p.carrier ?? '', carrier: p.carrier ?? '', provider_name: '' },
         fallbackBody: DEFAULT_BODIES.lor_adverse,
-      }));
+      });
     }
 
     for (const p of policies.filter(p => ['client_um_uim', 'pip_medpay'].includes(p.kind))) {
-      drafts.push(draftLetter({
-        caseId: id!, firmId: c.firm_id, type: 'lor_own_carrier',
+      recipients.push({
+        type: 'lor_own_carrier',
         subject: `Letter of Representation — ${p.carrier ?? 'Own Carrier'}`,
         ctx: { ...baseCtx, recipient: p.carrier ?? '', carrier: p.carrier ?? '', provider_name: '' },
         fallbackBody: DEFAULT_BODIES.lor_own_carrier,
-      }));
+      });
     }
 
     const seenProviders = new Set<string>();
@@ -301,17 +311,24 @@ export default function CaseDetail() {
       if (!t.provider_id || seenProviders.has(t.provider_id)) continue;
       seenProviders.add(t.provider_id);
       const providerName = t.providers?.name ?? '';
-      drafts.push(draftLetter({
-        caseId: id!, firmId: c.firm_id, type: 'lor_provider',
+      recipients.push({
+        type: 'lor_provider',
         subject: `Letter of Representation — ${providerName}`,
         ctx: { ...baseCtx, recipient: providerName, provider_name: providerName, carrier: '' },
         fallbackBody: DEFAULT_BODIES.lor_provider,
-      }));
+      });
     }
 
-    await Promise.all(drafts);
+    const toCreate = recipients.filter(r => !existingSubjects.has(r.subject));
+    const alreadyPresent = recipients.length - toCreate.length;
+
+    await Promise.all(toCreate.map(r => draftLetter({ caseId: id!, firmId: c.firm_id, ...r })));
+
     setGeneratingLors(false);
-    setMsg(`Drafted ${drafts.length} LOR${drafts.length !== 1 ? 's' : ''} to the Approval inbox.`);
+    const parts: string[] = [];
+    if (toCreate.length > 0) parts.push(`Drafted ${toCreate.length} LOR${toCreate.length !== 1 ? 's' : ''} to the Approval inbox`);
+    if (alreadyPresent > 0) parts.push(`${alreadyPresent} already in the inbox`);
+    setMsg(parts.length ? parts.join('; ') + '.' : 'No LOR recipients found — add policies or treatments first.');
   }
 
   function generateDemandDraft() {
