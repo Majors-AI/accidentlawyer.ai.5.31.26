@@ -34,6 +34,13 @@ export default function MoneyTab({ caseId, c, treatTotal, providers }: Props) {
   const [medical, setMedical] = useState('');
   const [savingDisb, setSavingDisb] = useState(false);
 
+  const [ledger, setLedger] = useState<any[]>([]);
+  const [treatments, setTreatments] = useState<any[]>([]);
+  const [posting, setPosting] = useState(false);
+  const [voidingId, setVoidingId] = useState<string|null>(null);
+  const [entryForm, setEntryForm] = useState({ entry_type: 'deposit', amount: '', memo: '' });
+  const [addingEntry, setAddingEntry] = useState(false);
+
   async function load() {
     const { data: sf } = await supabase.from('settlements').select('*').eq('case_id', caseId).order('created_at',{ascending:false});
     setSettlements(sf ?? []);
@@ -49,6 +56,10 @@ export default function MoneyTab({ caseId, c, treatTotal, providers }: Props) {
       setFees(String(latestDisb.fees ?? ''));
       setMedical(String(latestDisb.medical ?? ''));
     }
+    const { data: lg } = await supabase.from('trust_ledger').select('*').eq('case_id', caseId).order('created_at');
+    setLedger(lg ?? []);
+    const { data: tx } = await supabase.from('treatments').select('*').eq('case_id', caseId);
+    setTreatments(tx ?? []);
   }
   useEffect(() => { load(); }, [caseId]);
 
@@ -175,6 +186,70 @@ export default function MoneyTab({ caseId, c, treatTotal, providers }: Props) {
     await supabase.from('disbursements').update({ client_approved: !disbursement.client_approved }).eq('id', disbursement.id);
     load();
   }
+
+  // Trust ledger helpers
+  const hasAutoRows = ledger.some(r => r.memo?.includes('[auto]'));
+
+  async function postLedger(repost: boolean) {
+    if (!disbursement) return;
+    setPosting(true);
+    if (repost) {
+      await supabase.from('trust_ledger').delete().eq('case_id', caseId).like('memo', '%[auto]%');
+    }
+    const rows = [
+      { case_id: caseId, entry_type: 'deposit',      amount: disbursement.settlement_amount, in_trust: true,  memo: 'Settlement deposit [auto]' },
+      { case_id: caseId, entry_type: 'fee',           amount: disbursement.fees,              in_trust: false, memo: 'Firm fees [auto]' },
+      { case_id: caseId, entry_type: 'medical',       amount: disbursement.medical,           in_trust: false, memo: 'Medical [auto]' },
+      ...liens.map(l => ({
+        case_id: caseId, entry_type: 'lien', amount: l.amount ?? 0, in_trust: false,
+        memo: (l.holder ?? l.type.replace(/_/g, ' ')) + ' [auto]',
+      })),
+      { case_id: caseId, entry_type: 'disbursement',  amount: disbursement.net_to_client,    in_trust: false, memo: 'Net to client [auto]' },
+    ];
+    await supabase.from('trust_ledger').insert(rows);
+    setPosting(false);
+    load();
+  }
+
+  async function voidLedgerRow(id: string) {
+    setVoidingId(id);
+    await supabase.from('trust_ledger').delete().eq('id', id);
+    setVoidingId(null);
+    load();
+  }
+
+  async function addLedgerEntry() {
+    setAddingEntry(true);
+    await supabase.from('trust_ledger').insert({
+      case_id: caseId,
+      entry_type: entryForm.entry_type,
+      amount: Number(entryForm.amount),
+      in_trust: entryForm.entry_type === 'deposit',
+      memo: entryForm.memo || null,
+    });
+    setEntryForm({ entry_type: 'deposit', amount: '', memo: '' });
+    setAddingEntry(false);
+    load();
+  }
+
+  async function toggleLienSatisfied(lienId: string, current: boolean) {
+    await supabase.from('liens').update({
+      satisfied: !current,
+      satisfied_at: !current ? new Date().toISOString().slice(0, 10) : null,
+    }).eq('id', lienId);
+    load();
+  }
+
+  async function toggleTreatmentZeroBalance(treatId: string, current: boolean) {
+    await supabase.from('treatments').update({ zero_balance_confirmed: !current }).eq('id', treatId);
+    load();
+  }
+
+  const totalDeposits = ledger.filter(r => r.entry_type === 'deposit').reduce((s, r) => s + Number(r.amount), 0);
+  const totalPayouts  = ledger.filter(r => r.entry_type !== 'deposit').reduce((s, r) => s + Number(r.amount), 0);
+  const trustBalance  = totalDeposits - totalPayouts;
+  const hasPayouts    = ledger.some(r => r.entry_type !== 'deposit');
+  const reconciled    = hasPayouts && Math.abs(trustBalance) < 1;
 
   return (
     <>
@@ -396,6 +471,144 @@ export default function MoneyTab({ caseId, c, treatTotal, providers }: Props) {
           {savingDisb ? 'Saving...' : disbursement ? 'Update worksheet' : 'Save worksheet'}
         </button>
       </div>
+
+      {/* --- e: Disbursement & final payments --- */}
+      {disbursement && (
+        <div className="card">
+          <h3>Disbursement &amp; final payments</h3>
+
+          {/* Post / Re-post control */}
+          <div style={{marginBottom:16,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+            {!hasAutoRows ? (
+              <button className="btn sm" onClick={() => postLedger(false)} disabled={posting}>
+                {posting ? 'Posting...' : 'Post disbursement to trust ledger'}
+              </button>
+            ) : (
+              <button className="btn sm ghost" onClick={() => postLedger(true)} disabled={posting}>
+                {posting ? 'Re-posting...' : 'Re-post (replaces auto rows)'}
+              </button>
+            )}
+            <span className="muted small">Manual entries are preserved on re-post.</span>
+          </div>
+
+          {/* Ledger table */}
+          {ledger.length > 0 && (
+            <>
+              <table>
+                <thead><tr><th>Type</th><th>Amount</th><th>Memo</th><th>In trust</th><th></th></tr></thead>
+                <tbody>
+                  {ledger.map(r => (
+                    <tr key={r.id}>
+                      <td className="small">{r.entry_type}</td>
+                      <td className="small">${Number(r.amount).toLocaleString()}</td>
+                      <td className="small">{r.memo ?? '--'}</td>
+                      <td><span className={`tag tiny ${r.in_trust ? 'good' : 'gold'}`}>{r.in_trust ? 'yes' : 'no'}</span></td>
+                      <td>
+                        <button className="btn sm ghost" onClick={() => voidLedgerRow(r.id)} disabled={voidingId === r.id}>
+                          {voidingId === r.id ? '...' : 'Void'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{background:'var(--paper)',border:'1px solid var(--line)',borderRadius:9,padding:'14px 16px',marginTop:12,marginBottom:12}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                  <span className="muted small">Trust balance (deposits − payouts)</span>
+                  <span style={{fontSize:20,fontFamily:'var(--serif)',fontWeight:600,color:reconciled?'var(--good)':Math.abs(trustBalance)<1?'var(--good)':'var(--bad)'}}>
+                    ${trustBalance.toLocaleString(undefined,{maximumFractionDigits:0})}
+                  </span>
+                </div>
+                {hasPayouts && Math.abs(trustBalance) > 1 && (
+                  <p className="muted small" style={{marginTop:6,color:'var(--bad)',marginBottom:0}}>
+                    Does not reconcile to $0 — check ledger entries.
+                  </p>
+                )}
+                {reconciled && (
+                  <p className="muted small" style={{marginTop:6,color:'var(--good)',marginBottom:0}}>
+                    Fully reconciled.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Manual add entry */}
+          <div style={{paddingTop:12,borderTop:'1px solid var(--line)'}}>
+            <h4 style={{fontSize:14,fontFamily:'var(--sans)',fontWeight:600,marginBottom:8}}>Add entry</h4>
+            <div className="row">
+              <div>
+                <label>Type</label>
+                <select value={entryForm.entry_type} onChange={e=>setEntryForm(f=>({...f,entry_type:e.target.value}))}>
+                  {['deposit','fee','medical','lien','disbursement'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Amount ($)</label>
+                <input type="number" min="0" value={entryForm.amount} onChange={e=>setEntryForm(f=>({...f,amount:e.target.value}))} placeholder="0" />
+              </div>
+              <div>
+                <label>Memo</label>
+                <input value={entryForm.memo} onChange={e=>setEntryForm(f=>({...f,memo:e.target.value}))} placeholder="Optional note" />
+              </div>
+            </div>
+            <button className="btn sm" style={{marginTop:8}} onClick={addLedgerEntry} disabled={addingEntry || !entryForm.amount}>
+              {addingEntry ? 'Saving...' : 'Add entry'}
+            </button>
+          </div>
+
+          {/* Per-lien satisfied toggles */}
+          {liens.length > 0 && (
+            <div style={{marginTop:16,paddingTop:12,borderTop:'1px solid var(--line)'}}>
+              <h4 style={{fontSize:14,fontFamily:'var(--sans)',fontWeight:600,marginBottom:8}}>Lien satisfaction</h4>
+              <table>
+                <thead><tr><th>Type</th><th>Holder</th><th>Amount</th><th>Satisfied</th><th>Date satisfied</th></tr></thead>
+                <tbody>
+                  {liens.map(l => (
+                    <tr key={l.id}>
+                      <td className="small">{l.type.replace(/_/g,' ')}</td>
+                      <td className="small">{l.holder ?? '--'}</td>
+                      <td className="small">{l.amount ? '$'+Number(l.amount).toLocaleString() : '--'}</td>
+                      <td>
+                        <span className={`tag tiny ${l.satisfied?'good':'warn'}`} style={{cursor:'pointer'}} onClick={()=>toggleLienSatisfied(l.id, !!l.satisfied)}>
+                          {l.satisfied ? 'yes' : 'no'}
+                        </span>
+                      </td>
+                      <td className="small">{l.satisfied_at ?? '--'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Per-treatment zero-balance confirmation */}
+          {treatments.length > 0 && (
+            <div style={{marginTop:16,paddingTop:12,borderTop:'1px solid var(--line)'}}>
+              <h4 style={{fontSize:14,fontFamily:'var(--sans)',fontWeight:600,marginBottom:8}}>Provider zero-balance confirmation</h4>
+              <table>
+                <thead><tr><th>Provider</th><th>Status</th><th>Zero-balance confirmed</th></tr></thead>
+                <tbody>
+                  {treatments.map(t => {
+                    const p = providers.find(pr => pr.id === t.provider_id);
+                    return (
+                      <tr key={t.id}>
+                        <td className="small">{p?.name ?? '--'}</td>
+                        <td><span className="tag tiny gold">{t.status}</span></td>
+                        <td>
+                          <span className={`tag tiny ${t.zero_balance_confirmed?'good':'warn'}`} style={{cursor:'pointer'}} onClick={()=>toggleTreatmentZeroBalance(t.id, !!t.zero_balance_confirmed)}>
+                            {t.zero_balance_confirmed ? 'confirmed' : 'pending'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

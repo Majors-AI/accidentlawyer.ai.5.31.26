@@ -24,9 +24,11 @@ export default function CaseClosure({ caseId, c, onClosed }: Props) {
 
   useEffect(() => { load(); }, [caseId]);
 
-  const allLiensAck   = liens.length > 0 && liens.every(l => l.acknowledged);
-  const allBillsRcvd  = treatments.length > 0 && treatments.every(t => t.bills_received);
-  const disbApproved  = disbursement?.client_approved === true;
+  const allLiensAck       = liens.length > 0 && liens.every(l => l.acknowledged);
+  const allBillsRcvd      = treatments.length > 0 && treatments.every(t => t.bills_received);
+  const disbApproved      = disbursement?.client_approved === true;
+  const allLiensSatisfied = liens.length > 0 && liens.every(l => l.satisfied);
+  const allZeroBalance    = treatments.length > 0 && treatments.every(t => t.zero_balance_confirmed);
 
   async function closeFile() {
     setClosing(true);
@@ -92,6 +94,20 @@ export default function CaseClosure({ caseId, c, onClosed }: Props) {
           <span className="small">
             Disbursement client-approved
             {!disbursement && <span className="muted"> (none recorded)</span>}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className={`tag tiny ${allLiensSatisfied ? 'good' : 'warn'}`}>{allLiensSatisfied ? 'check' : 'warn'}</span>
+          <span className="small">
+            All liens satisfied
+            {liens.length === 0 && <span className="muted"> (none recorded)</span>}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className={`tag tiny ${allZeroBalance ? 'good' : 'warn'}`}>{allZeroBalance ? 'check' : 'warn'}</span>
+          <span className="small">
+            All provider balances zero-confirmed
+            {treatments.length === 0 && <span className="muted"> (none recorded)</span>}
           </span>
         </div>
       </div>
