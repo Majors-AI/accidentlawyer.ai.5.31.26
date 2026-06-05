@@ -11,6 +11,8 @@ import ClientMessages from './pages/client/Messages';
 import Journal from './pages/client/Journal';
 import WageLoss from './pages/client/WageLoss';
 import Treatment from './pages/client/Treatment';
+import Documents from './pages/client/Documents';
+import Profile from './pages/client/Profile';
 import CaseList from './pages/firm/CaseList';
 import CaseDetail from './pages/firm/CaseDetail';
 import ApprovalInbox from './pages/firm/ApprovalInbox';
@@ -83,6 +85,8 @@ export default function App() {
               <Route path="/journal" element={<Journal />} />
               <Route path="/wage-loss" element={<WageLoss />} />
               <Route path="/treatment" element={<Treatment />} />
+              <Route path="/documents" element={<Documents />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </>
           )}
