@@ -62,6 +62,7 @@ export default function App() {
   return (
     <AuthCtx.Provider value={{ profile, loading, signOut }}>
       <Layout>
+        <div key={loc.pathname} className="page-enter">
         <Routes>
           {superAdmin ? (
             <>
@@ -97,6 +98,7 @@ export default function App() {
             </>
           )}
         </Routes>
+        </div>
       </Layout>
     </AuthCtx.Provider>
   );

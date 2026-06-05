@@ -9,50 +9,56 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <aside className="side">
-        <div className="brand">Accident<br />Lawyer<span style={{color:'var(--oxblood)'}}>.ai</span>
-          <small>{superAdmin ? 'Platform Admin' : 'Case Intelligence'}</small>
+        <div className="side-header">
+          <div className="brand">Accident<br />Lawyer<span style={{color:'var(--color-electric-blue)'}}>.ai</span>
+            <small>{superAdmin ? 'Platform Admin' : 'Case Intelligence'}</small>
+          </div>
         </div>
 
-        {superAdmin ? (
-          <nav className="nav">
-            <div className="group">Platform</div>
-            <NavLink to="/firms" className={({isActive})=>isActive?'active':''}>Firms & metrics</NavLink>
-          </nav>
-        ) : firm ? (
-          <nav className="nav">
-            <div className="group">Caseload</div>
-            <NavLink to="/cases" className={({isActive})=>isActive?'active':''}>All cases</NavLink>
-            <NavLink to="/approvals" className={({isActive})=>isActive?'active':''}>Approval inbox</NavLink>
-            <NavLink to="/legacy" className={({isActive})=>isActive?'active':''}>Legacy import</NavLink>
-            <div className="group">Firm</div>
-            <NavLink to="/account" className={({isActive})=>isActive?'active':''}>Account & billing</NavLink>
-            <NavLink to="/calendar" className={({isActive})=>isActive?'active':''}>Calendar & deadlines</NavLink>
-            <NavLink to="/templates" className={({isActive})=>isActive?'active':''}>Letter templates</NavLink>
-            <NavLink to="/reporting" className={({isActive})=>isActive?'active':''}>Reporting</NavLink>
-            <div className="group">Coming online</div>
-            <a title="Scaffolded — built next">Dropbox backups</a>
-            <a title="Scaffolded — built next">Trust accounting</a>
-          </nav>
-        ) : (
-          <nav className="nav">
-            <div className="group">My case</div>
-            <NavLink to="/" end className={({isActive})=>isActive?'active':''}>Dashboard</NavLink>
-            <NavLink to="/journal" className={({isActive})=>isActive?'active':''}>Injury journal</NavLink>
-            <NavLink to="/wage-loss" className={({isActive})=>isActive?'active':''}>Wage loss</NavLink>
-            <NavLink to="/treatment" className={({isActive})=>isActive?'active':''}>Treatment</NavLink>
-            <NavLink to="/documents" className={({isActive})=>isActive?'active':''}>My documents</NavLink>
-            <NavLink to="/messages" className={({isActive})=>isActive?'active':''}>Messages</NavLink>
-            <NavLink to="/setup" className={({isActive})=>isActive?'active':''}>Engagement & setup</NavLink>
-            <NavLink to="/intake" className={({isActive})=>isActive?'active':''}>Edit intake</NavLink>
-            <div className="group">Account</div>
-            <NavLink to="/profile" className={({isActive})=>isActive?'active':''}>My profile</NavLink>
-          </nav>
-        )}
+        <div className="side-nav">
+          {superAdmin ? (
+            <nav className="nav">
+              <div className="group">Platform</div>
+              <NavLink to="/firms" className={({isActive})=>isActive?'active':''}>Firms & metrics</NavLink>
+            </nav>
+          ) : firm ? (
+            <nav className="nav">
+              <div className="group">Caseload</div>
+              <NavLink to="/cases" className={({isActive})=>isActive?'active':''}>All cases</NavLink>
+              <NavLink to="/approvals" className={({isActive})=>isActive?'active':''}>Approval inbox</NavLink>
+              <NavLink to="/legacy" className={({isActive})=>isActive?'active':''}>Legacy import</NavLink>
+              <div className="group">Firm</div>
+              <NavLink to="/account" className={({isActive})=>isActive?'active':''}>Account & billing</NavLink>
+              <NavLink to="/calendar" className={({isActive})=>isActive?'active':''}>Calendar & deadlines</NavLink>
+              <NavLink to="/templates" className={({isActive})=>isActive?'active':''}>Letter templates</NavLink>
+              <NavLink to="/reporting" className={({isActive})=>isActive?'active':''}>Reporting</NavLink>
+              <div className="group">Coming online</div>
+              <a title="Scaffolded — built next">Dropbox backups</a>
+              <a title="Scaffolded — built next">Trust accounting</a>
+            </nav>
+          ) : (
+            <nav className="nav">
+              <div className="group">My case</div>
+              <NavLink to="/" end className={({isActive})=>isActive?'active':''}>Dashboard</NavLink>
+              <NavLink to="/journal" className={({isActive})=>isActive?'active':''}>Injury journal</NavLink>
+              <NavLink to="/wage-loss" className={({isActive})=>isActive?'active':''}>Wage loss</NavLink>
+              <NavLink to="/treatment" className={({isActive})=>isActive?'active':''}>Treatment</NavLink>
+              <NavLink to="/documents" className={({isActive})=>isActive?'active':''}>My documents</NavLink>
+              <NavLink to="/messages" className={({isActive})=>isActive?'active':''}>Messages</NavLink>
+              <NavLink to="/setup" className={({isActive})=>isActive?'active':''}>Engagement & setup</NavLink>
+              <NavLink to="/intake" className={({isActive})=>isActive?'active':''}>Edit intake</NavLink>
+              <div className="group">Account</div>
+              <NavLink to="/profile" className={({isActive})=>isActive?'active':''}>My profile</NavLink>
+            </nav>
+          )}
+        </div>
 
-        <div className="who">
-          <b>{profile?.full_name}</b><br />
-          <span className="muted tiny">{superAdmin ? 'platform admin' : profile?.role}</span>
-          <button className="btn ghost sm" style={{color:'#e9e3d4',borderColor:'rgba(255,255,255,.2)'}} onClick={signOut}>Sign out</button>
+        <div className="side-footer">
+          <div className="who">
+            <b>{profile?.full_name}</b>
+            <span className="role">{superAdmin ? 'platform admin' : profile?.role}</span>
+          </div>
+          <button className="btn ghost sm" style={{color:'rgba(240,250,242,.8)',borderColor:'rgba(255,255,255,.18)'}} onClick={signOut}>Sign out</button>
         </div>
       </aside>
       <main className="main">{children}</main>
