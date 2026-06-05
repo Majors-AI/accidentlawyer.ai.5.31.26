@@ -18,6 +18,7 @@ import CaseDetail from './pages/firm/CaseDetail';
 import ApprovalInbox from './pages/firm/ApprovalInbox';
 import Account from './pages/firm/Account';
 import Legacy from './pages/firm/Legacy';
+import Reporting from './pages/firm/Reporting';
 import Firms from './pages/admin/Firms';
 
 type Profile = { id: string; full_name: string; email: string; role: string;
@@ -74,6 +75,7 @@ export default function App() {
               <Route path="/approvals" element={<ApprovalInbox />} />
               <Route path="/account" element={<Account />} />
               <Route path="/legacy" element={<Legacy />} />
+              <Route path="/reporting" element={<Reporting />} />
               <Route path="*" element={<Navigate to="/" />} />
             </>
           ) : (
