@@ -26,6 +26,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <NavLink to="/legacy" className={({isActive})=>isActive?'active':''}>Legacy import</NavLink>
             <div className="group">Firm</div>
             <NavLink to="/account" className={({isActive})=>isActive?'active':''}>Account & billing</NavLink>
+            <NavLink to="/templates" className={({isActive})=>isActive?'active':''}>Letter templates</NavLink>
             <div className="group">Coming online</div>
             <a title="Scaffolded — built next">Calendar & meetings</a>
             <a title="Scaffolded — built next">Dropbox backups</a>

@@ -5,6 +5,7 @@ import { useAuth, isFirm } from '../../App';
 import { inviteUser } from '../../lib/inviteUser';
 import MessageThread from '../../components/MessageThread';
 import FileCabinet from '../../components/FileCabinet';
+import { draftLetter, DEFAULT_BODIES } from '../../lib/letters';
 import MoneyTab from './case-detail/MoneyTab';
 import LitTab from './case-detail/LitTab';
 import CaseClosure from './case-detail/CaseClosure';
@@ -41,6 +42,7 @@ export default function CaseDetail() {
   const [savingDemand, setSavingDemand] = useState(false);
   const [invitingClient, setInvitingClient] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [generatingLors, setGeneratingLors] = useState(false);
 
   async function load() {
     const { data } = await supabase.from('cases').select('*, clients(*)').eq('id', id).single();
@@ -126,7 +128,27 @@ export default function CaseDetail() {
         body: `Dear ${c.clients?.full_name},\n\nWe are pleased to represent you for your personal-injury claim arising from the incident on ${c.date_of_loss}. Our representation covers your personal-injury claim only; we will also help you track your property-damage claim separately.\n\nAttached is your fee agreement. What to expect: treatment, documentation, demand, and resolution. Please do not give a recorded statement to any insurer.\n\n— Your legal team`,
       });
       setMsg('Accepted. Acceptance email + fee agreement drafted and queued for your release in the Approval inbox.');
-    } else setMsg('Case denied.');
+    } else {
+      setMsg('Case denied.');
+      try {
+        await draftLetter({
+          caseId: id!,
+          firmId: c.firm_id,
+          type: 'declination',
+          subject: 'Regarding your potential claim',
+          ctx: {
+            client_name: c.clients?.full_name ?? '',
+            date_of_loss: c.date_of_loss ?? '',
+            claim: (c.claim ?? '').replace(/_/g, ' '),
+            jurisdiction: c.jurisdiction ?? '',
+            attorney_name: profile?.full_name ?? '',
+            firm_name: '',
+            recipient: '', carrier: '', provider_name: '',
+          },
+          fallbackBody: DEFAULT_BODIES.declination,
+        });
+      } catch (_) { /* declination draft failure does not block denial */ }
+    }
     load();
   }
 
@@ -241,6 +263,55 @@ export default function CaseDetail() {
       ? { ok: true, msg: 'Invite sent. Client will receive an email to set up their portal access.' }
       : { ok: false, msg: res.error ?? 'Invite failed' });
     setInvitingClient(false);
+  }
+
+  async function generateLors() {
+    setGeneratingLors(true);
+    const baseCtx = {
+      client_name: c.clients?.full_name ?? '',
+      date_of_loss: c.date_of_loss ?? '',
+      claim: (c.claim ?? '').replace(/_/g, ' '),
+      jurisdiction: c.jurisdiction ?? '',
+      attorney_name: profile?.full_name ?? '',
+      firm_name: '',
+    };
+
+    const drafts: Promise<void>[] = [];
+
+    for (const p of policies.filter(p => p.kind === 'adverse_liability')) {
+      drafts.push(draftLetter({
+        caseId: id!, firmId: c.firm_id, type: 'lor_adverse',
+        subject: `Letter of Representation — ${p.carrier ?? 'Adverse Carrier'}`,
+        ctx: { ...baseCtx, recipient: p.carrier ?? '', carrier: p.carrier ?? '', provider_name: '' },
+        fallbackBody: DEFAULT_BODIES.lor_adverse,
+      }));
+    }
+
+    for (const p of policies.filter(p => ['client_um_uim', 'pip_medpay'].includes(p.kind))) {
+      drafts.push(draftLetter({
+        caseId: id!, firmId: c.firm_id, type: 'lor_own_carrier',
+        subject: `Letter of Representation — ${p.carrier ?? 'Own Carrier'}`,
+        ctx: { ...baseCtx, recipient: p.carrier ?? '', carrier: p.carrier ?? '', provider_name: '' },
+        fallbackBody: DEFAULT_BODIES.lor_own_carrier,
+      }));
+    }
+
+    const seenProviders = new Set<string>();
+    for (const t of treatments) {
+      if (!t.provider_id || seenProviders.has(t.provider_id)) continue;
+      seenProviders.add(t.provider_id);
+      const providerName = t.providers?.name ?? '';
+      drafts.push(draftLetter({
+        caseId: id!, firmId: c.firm_id, type: 'lor_provider',
+        subject: `Letter of Representation — ${providerName}`,
+        ctx: { ...baseCtx, recipient: providerName, provider_name: providerName, carrier: '' },
+        fallbackBody: DEFAULT_BODIES.lor_provider,
+      }));
+    }
+
+    await Promise.all(drafts);
+    setGeneratingLors(false);
+    setMsg(`Drafted ${drafts.length} LOR${drafts.length !== 1 ? 's' : ''} to the Approval inbox.`);
   }
 
   function generateDemandDraft() {
@@ -395,6 +466,15 @@ export default function CaseDetail() {
             <td>{p.verified?<span className="tag good tiny">verified</span>:<span className="tag warn tiny">pending</span>}</td></tr>
           ))}{policies.length===0 && <tr><td colSpan={4} className="muted">No policies recorded.</td></tr>}</tbody>
         </table>
+        {c.status !== 'lead' && (
+          <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid var(--line)'}}>
+            <h4 style={{fontSize:14,fontFamily:'var(--sans)',fontWeight:600,marginBottom:6}}>Letters of Representation</h4>
+            <p className="muted small" style={{marginTop:0}}>Drafts LORs to adverse carriers, own carriers (UM/UIM, PIP/MedPay), and treating providers. Each goes to the Approval inbox for attorney release.</p>
+            <button className="btn sm" onClick={generateLors} disabled={generatingLors}>
+              {generatingLors ? 'Drafting…' : 'Generate Letters of Representation'}
+            </button>
+          </div>
+        )}
         <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid var(--line)'}}>
           <h4 style={{fontSize:14,fontFamily:'var(--sans)',fontWeight:600,marginBottom:10}}>Add policy</h4>
           <div className="row">
