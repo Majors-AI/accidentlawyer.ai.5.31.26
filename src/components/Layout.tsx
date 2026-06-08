@@ -23,6 +23,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </nav>
           ) : firm ? (
             <nav className="nav">
+              <div className="group">Overview</div>
+              <NavLink to="/" end className={({isActive})=>isActive?'active':''}>Dashboard</NavLink>
               <div className="group">Caseload</div>
               <NavLink to="/cases" className={({isActive})=>isActive?'active':''}>All cases</NavLink>
               <NavLink to="/approvals" className={({isActive})=>isActive?'active':''}>Approval inbox</NavLink>
