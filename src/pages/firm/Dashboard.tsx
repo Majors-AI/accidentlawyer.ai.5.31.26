@@ -118,7 +118,6 @@ export default function Dashboard() {
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [signOff, setSignOff] = useState(0);
-  const [approvals, setApprovals] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -129,21 +128,18 @@ export default function Dashboard() {
         { data: fu },
         { data: tk },
         { count: comm },
-        { count: apr },
       ] = await Promise.all([
         supabase.from('cases').select('id, status, sol_date, clients(full_name)'),
         supabase.from('deadlines').select('id, type, label, due_at, cases(id, clients(full_name))').eq('satisfied', false),
         supabase.from('follow_ups').select('id, label, due_at, cases(id, clients(full_name))').eq('done', false),
         supabase.from('tasks').select('id, title, due_at, cases(id, clients(full_name))').eq('status', 'open'),
         supabase.from('communications').select('id', { count: 'exact', head: true }).in('status', ['draft', 'queued']),
-        supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('status', 'requested'),
       ]);
       setCases(cs ?? []);
       setDeadlines(dl ?? []);
       setFollowUps(fu ?? []);
       setTasks(tk ?? []);
       setSignOff(comm ?? 0);
-      setApprovals(apr ?? 0);
       setLoading(false);
     })();
   }, []);
@@ -214,8 +210,8 @@ export default function Dashboard() {
           accent={solCritical > 0 ? 'var(--bad)' : undefined} />
         <StatCard label="Overdue deadlines" value={String(overdueDeadlines)}
           accent={overdueDeadlines > 0 ? 'var(--bad)' : undefined} onClick={() => nav('/calendar')} />
-        <StatCard label="Awaiting sign-off" value={String(signOff + approvals)}
-          accent={(signOff + approvals) > 0 ? 'var(--warn)' : undefined} onClick={() => nav('/approvals')} />
+        <StatCard label="Awaiting sign-off" value={String(signOff)}
+          accent={signOff > 0 ? 'var(--warn)' : undefined} onClick={() => nav('/approvals')} />
       </div>
 
       {/* SOL watch — the headline malpractice-risk widget */}
@@ -259,10 +255,8 @@ export default function Dashboard() {
           <dl className="kv" style={{ marginTop: 10 }}>
             <dt>Drafts awaiting release</dt>
             <dd>{signOff > 0 ? <span className="tag gold">{signOff}</span> : <span className="muted">—</span>}</dd>
-            <dt>Approvals requested</dt>
-            <dd>{approvals > 0 ? <span className="tag gold">{approvals}</span> : <span className="muted">—</span>}</dd>
           </dl>
-          {(signOff + approvals) > 0 && (
+          {signOff > 0 && (
             <div className="small muted clickable" style={{ marginTop: 10 }} onClick={() => nav('/approvals')}>
               Go to approval inbox
             </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 
 const PIPELINE_STAGES = ['lead', 'under_review', 'accepted', 'treating', 'demand', 'settlement', 'litigation'];
@@ -27,9 +28,9 @@ function lastMonths(n: number) {
   return out;
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, onClick }: { label: string; value: string; onClick?: () => void }) {
   return (
-    <div className="card" style={{ marginBottom: 0 }}>
+    <div className={onClick ? 'card clickable' : 'card'} style={{ marginBottom: 0 }} onClick={onClick}>
       <div className="muted small" style={{ marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 24, fontFamily: 'var(--serif)', fontWeight: 600 }}>{value}</div>
     </div>
@@ -65,6 +66,7 @@ function MonthlyBars({ data, format }: { data: { label: string; value: number }[
 }
 
 export default function Reporting() {
+  const nav = useNavigate();
   const [cases, setCases] = useState<any[]>([]);
   const [disbursements, setDisbursements] = useState<any[]>([]);
   const [settlements, setSettlements] = useState<{ status: string }[]>([]);
@@ -167,6 +169,16 @@ export default function Reporting() {
   const sentDemands = demands.filter(d => d.status === 'sent');
   const sentDemandTotal = sentDemands.reduce((s, d) => s + (Number(d.amount) || 0), 0);
 
+  // Conversion — approximations from current status (no stage history yet)
+  const INTAKE_STAGES = ['lead', 'under_review', 'info_requested'];
+  const reviewedOut = cases.filter(c => !INTAKE_STAGES.includes(c.status)); // left intake: accepted-path or denied
+  const decided = reviewedOut.length;
+  const acceptedPath = reviewedOut.filter(c => c.status !== 'denied').length;
+  const acceptanceRate = decided > 0 ? acceptedPath / decided : 0;
+  const settledCount = disbCount; // cases with a disbursement
+  const settlementRate = acceptedPath > 0 ? settledCount / acceptedPath : 0;
+  const pct = (r: number) => `${Math.round(r * 100)}%`;
+
   if (loading) return <div className="muted">Loading…</div>;
 
   return (
@@ -180,8 +192,8 @@ export default function Reporting() {
 
       {/* Top stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
-        <StatCard label="Open cases" value={String(openCount)} />
-        <StatCard label="Closed cases" value={String(closedCount)} />
+        <StatCard label="Open cases" value={String(openCount)} onClick={() => nav('/cases')} />
+        <StatCard label="Closed cases" value={String(closedCount)} onClick={() => nav('/cases')} />
         <StatCard label="Total settled (gross)" value={fmt(grossTotal)} />
         <StatCard label="Fees earned" value={fmt(feesTotal)} />
         <StatCard label="Net to clients" value={fmt(netTotal)} />
@@ -316,6 +328,20 @@ export default function Reporting() {
               </dd>
               <dt>Total amount</dt>
               <dd>{sentDemands.length > 0 ? fmt(sentDemandTotal) : <span className="muted">—</span>}</dd>
+            </dl>
+          </div>
+
+          <div className="card">
+            <h3>Conversion</h3>
+            <dl className="kv" style={{ marginTop: 10 }}>
+              <dt>Acceptance rate</dt>
+              <dd>{decided > 0
+                ? <>{pct(acceptanceRate)} <span className="muted small">· {acceptedPath} of {decided} decided</span></>
+                : <span className="muted">—</span>}</dd>
+              <dt>Settlement rate</dt>
+              <dd>{acceptedPath > 0
+                ? <>{pct(settlementRate)} <span className="muted small">· {settledCount} of {acceptedPath} accepted</span></>
+                : <span className="muted">—</span>}</dd>
             </dl>
           </div>
         </div>
