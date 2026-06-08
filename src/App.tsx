@@ -21,6 +21,7 @@ import Legacy from './pages/firm/Legacy';
 import Calendar from './pages/firm/Calendar';
 import Templates from './pages/firm/Templates';
 import Reporting from './pages/firm/Reporting';
+import Dashboard from './pages/firm/Dashboard';
 import Firms from './pages/admin/Firms';
 
 type Profile = { id: string; full_name: string; email: string; role: string;
@@ -72,7 +73,7 @@ export default function App() {
             </>
           ) : firm ? (
             <>
-              <Route path="/" element={<CaseList />} />
+              <Route path="/" element={<Dashboard />} />
               <Route path="/cases" element={<CaseList />} />
               <Route path="/cases/:id" element={<CaseDetail />} />
               <Route path="/approvals" element={<ApprovalInbox />} />
