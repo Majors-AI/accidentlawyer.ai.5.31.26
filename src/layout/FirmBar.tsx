@@ -1,21 +1,17 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../App';
-import { visibleStages } from './stages';
+import { JOURNEY_STAGES } from '../journey/stages';
 
-// Fixed full-width bottom bar. Renders only the stages visible to the current
-// profile (others are hidden, not locked). Original stage numbers are kept on
-// the pills, so non-contiguous numbers per role are expected. The active stage
-// is derived from the current route (not local state). Scrolls horizontally on
-// narrow widths.
-export default function JourneyBar() {
+// The firm's single full-width bottom bar — the full journey, like the original
+// scaffold screen: all ten numbered stage pills, nothing else. Reuses
+// .journey-bar / .journey-pill styling. Active state is derived from the current
+// route (exact match or section prefix). Scrolls horizontally when it overflows.
+export default function FirmBar() {
   const { pathname } = useLocation();
-  const { profile } = useAuth();
-  const stages = visibleStages(profile);
 
   return (
-    <nav className="journey-bar" aria-label="Client journey">
+    <nav className="journey-bar firm-bar" aria-label="Client journey">
       <div className="journey-bar-track">
-        {stages.map((stage) => {
+        {JOURNEY_STAGES.map((stage) => {
           const active = pathname === stage.path || pathname.startsWith(stage.path + '/');
           return (
             <Link
