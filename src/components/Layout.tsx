@@ -34,6 +34,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to="/calendar" className={({isActive})=>isActive?'active':''}>Calendar & deadlines</NavLink>
               <NavLink to="/templates" className={({isActive})=>isActive?'active':''}>Letter templates</NavLink>
               <NavLink to="/reporting" className={({isActive})=>isActive?'active':''}>Reporting</NavLink>
+              <NavLink to="/settings" className={({isActive})=>isActive?'active':''}>Firm settings</NavLink>
               <div className="group">Coming online</div>
               <a title="Scaffolded — built next">Dropbox backups</a>
               <a title="Scaffolded — built next">Trust accounting</a>

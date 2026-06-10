@@ -22,6 +22,7 @@ import Calendar from './pages/firm/Calendar';
 import Templates from './pages/firm/Templates';
 import Reporting from './pages/firm/Reporting';
 import Dashboard from './pages/firm/Dashboard';
+import FirmSettings from './pages/firm/settings/FirmSettings';
 import Firms from './pages/admin/Firms';
 
 type Profile = { id: string; full_name: string; email: string; role: string;
@@ -82,6 +83,7 @@ export default function App() {
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/templates" element={<Templates />} />
               <Route path="/reporting" element={<Reporting />} />
+              <Route path="/settings/*" element={<FirmSettings />} />
               <Route path="*" element={<Navigate to="/" />} />
             </>
           ) : (
