@@ -237,10 +237,18 @@ function blankDepartment(id: DeptId): DepartmentConfig {
   };
 }
 
+// Firm-wide approval gates keyed by function key (e.g. 'disbursement'). The
+// Owner Portal (step 9) drives the setter; departments READ this to decide
+// whether an action needs approval before it takes effect.
+export interface ApprovalGateConfig {
+  requiresApproval: boolean;
+}
+
 export interface FirmSettingsState {
   employees: Employee[];
   whiteLabel: WhiteLabel;
   departments: Record<DeptId, DepartmentConfig>;
+  approvalGate: Record<string, ApprovalGateConfig>;
 }
 
 // ---- seeded mock data ---------------------------------------------------
@@ -303,6 +311,9 @@ const SEED: FirmSettingsState = {
       },
     },
   },
+  approvalGate: {
+    disbursement: { requiresApproval: true },
+  },
 };
 
 // ---- context + hook -----------------------------------------------------
@@ -317,6 +328,8 @@ export interface FirmSettingsApi {
   getDepartment: (id: DeptId) => DepartmentConfig;
   // Resolves a dept's effective scheme (its own, or the global it inherits).
   getDeptScheme: (id: DeptId) => ColorScheme;
+  // Approval gate for a function key (default: no approval required).
+  getApprovalGate: (funcKey: string) => ApprovalGateConfig;
 
   // employee updaters — each calls logChange. TODO(real persistence: Supabase).
   updateEmployee: (id: string, patch: Partial<Employee>) => void;
@@ -332,6 +345,8 @@ export interface FirmSettingsApi {
   // null = inherit global. Single write-path for per-department colors.
   setDeptScheme: (id: DeptId, scheme: ColorScheme | null) => void;
   setDepartment: (id: DeptId, patch: Partial<DepartmentConfig>) => void;
+  // Owner Portal (step 9) drives this; audited like the other setters.
+  setApprovalGate: (funcKey: string, config: ApprovalGateConfig) => void;
 }
 
 const FirmSettingsCtx = createContext<FirmSettingsApi | null>(null);
@@ -349,6 +364,7 @@ export function FirmSettingsProvider({ actor = 'unknown', children }: { actor?: 
     getWhiteLabel: () => state.whiteLabel,
     getDepartment: (id) => state.departments[id],
     getDeptScheme: (id) => state.whiteLabel.deptSchemes[id] ?? state.whiteLabel.globalScheme,
+    getApprovalGate: (funcKey) => state.approvalGate[funcKey] ?? { requiresApproval: false },
 
     updateEmployee: (id, patch) =>
       setState(s => {
@@ -424,6 +440,11 @@ export function FirmSettingsProvider({ actor = 'unknown', children }: { actor?: 
         const after = { ...before, ...patch };
         logChange({ actor, action: 'update', target: `department:${id}`, before, after });
         return { ...s, departments: { ...s.departments, [id]: after } };
+      }),
+    setApprovalGate: (funcKey, config) =>
+      setState(s => {
+        logChange({ actor, action: 'update', target: `approvalGate:${funcKey}`, before: s.approvalGate[funcKey] ?? null, after: config });
+        return { ...s, approvalGate: { ...s.approvalGate, [funcKey]: config } };
       }),
   }), [state, actor]);
 

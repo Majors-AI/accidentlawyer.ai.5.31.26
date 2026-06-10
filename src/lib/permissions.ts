@@ -56,14 +56,12 @@ export function derivePermissions(profile: PermissionProfile | null): Permission
   // Only lawyers (or owners) may edit lawyer-owned tasks.
   const canEditLawyerTasks = isLawyer || isOwner;
 
-  // TODO(real backing data): per-function approval matrix keyed by FuncKey and
-  // department supervisor mapping. For now owners can approve anything; lawyers
-  // can approve their own legal functions; everyone else cannot approve.
-  const canApprove = (funcKey: FuncKey): boolean => {
-    if (isOwner) return true;
-    if (isLawyer && funcKey.startsWith('legal.')) return true;
-    return false;
-  };
+  // Attorneys and owners may approve gated functions (e.g. 'disbursement');
+  // non-lawyers cannot. Whether approval actually APPLIES to a given action is a
+  // separate decision the caller makes by reading the firm's approvalGate slice.
+  // TODO(real backing data): a per-function approval matrix could refine this
+  // (e.g. some funcKeys restricted to owners), keyed by FuncKey.
+  const canApprove = (_funcKey: FuncKey): boolean => isLawyer || isOwner;
 
   // Firm-wide directory management is owner/super-admin only today.
   const canManageDirectory = isOwner;
