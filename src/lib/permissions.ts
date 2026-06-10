@@ -38,9 +38,12 @@ export interface Permissions {
 export function derivePermissions(profile: PermissionProfile | null): Permissions {
   const isSuperAdmin = !!profile?.is_platform_admin;
 
-  // TODO(real backing data): firm owner is a distinct flag (e.g. profiles.is_firm_owner
-  // or a firm_members.role = 'owner' row). For now we approximate: a super admin or
-  // the firm 'admin' role is treated as owner-capable.
+  // Testable scaffold: the firm 'admin' role (and any super-admin) is treated as
+  // owner. This makes the firm-wide edit gates (canManageDirectory /
+  // canManageBranding / canManageDepartment) and the Owner Portal exercisable by
+  // the admin test user, rather than sitting read-only behind a false stub.
+  // TODO(real backing data): a dedicated firm-owner flag (profiles.is_firm_owner
+  // or a firm_members.role = 'owner' row) replaces this role mapping.
   const isOwner = isSuperAdmin || profile?.role === 'admin';
 
   // 'attorney' role -> lawyer today.

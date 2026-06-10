@@ -240,15 +240,37 @@ function blankDepartment(id: DeptId): DepartmentConfig {
 // Firm-wide approval gates keyed by function key (e.g. 'disbursement'). The
 // Owner Portal (step 9) drives the setter; departments READ this to decide
 // whether an action needs approval before it takes effect.
+export type ApproverMode = 'supervising_attorney' | 'specific';
 export interface ApprovalGateConfig {
   requiresApproval: boolean;
+  // WHO approves when required: the case's supervising attorney, or a specific
+  // selected employee. Optional so an unset gate (default) stays valid.
+  approverMode?: ApproverMode;
+  approverId?: string;        // employee id, used when approverMode === 'specific'
 }
+
+// Gated function keys the Owner Portal exposes (extensible).
+export const APPROVAL_GATE_KEYS: { key: string; label: string }[] = [
+  { key: 'disbursement', label: 'Disbursement' },
+  { key: 'refund', label: 'Refund' },
+  { key: 'agreement_terms', label: 'Agreement terms' },
+];
+
+// Feature keys an owner can grant to the platform super-admin. All OFF by default.
+export const SUPER_ADMIN_GRANTS: { key: string; label: string; detail: string }[] = [
+  { key: 'view_firm_financials', label: 'View firm financials', detail: 'Let the platform super-admin view this firm’s accounting reports.' },
+  { key: 'manage_integrations', label: 'Manage integrations', detail: 'Allow super-admin to configure this firm’s third-party integrations.' },
+  { key: 'export_case_data', label: 'Export case data', detail: 'Allow super-admin to export this firm’s case data.' },
+  { key: 'impersonate_staff', label: 'Impersonate staff', detail: 'Allow super-admin to act as a firm user for support.' },
+];
 
 export interface FirmSettingsState {
   employees: Employee[];
   whiteLabel: WhiteLabel;
   departments: Record<DeptId, DepartmentConfig>;
   approvalGate: Record<string, ApprovalGateConfig>;
+  // Owner-granted super-admin capabilities, keyed by feature key. Seeded OFF.
+  superAdminGrants: Record<string, boolean>;
 }
 
 // ---- seeded mock data ---------------------------------------------------
@@ -312,8 +334,10 @@ const SEED: FirmSettingsState = {
     },
   },
   approvalGate: {
-    disbursement: { requiresApproval: true },
+    disbursement: { requiresApproval: true, approverMode: 'supervising_attorney' },
   },
+  // All grantable features start OFF (per spec).
+  superAdminGrants: Object.fromEntries(SUPER_ADMIN_GRANTS.map(g => [g.key, false])),
 };
 
 // ---- context + hook -----------------------------------------------------
@@ -330,6 +354,7 @@ export interface FirmSettingsApi {
   getDeptScheme: (id: DeptId) => ColorScheme;
   // Approval gate for a function key (default: no approval required).
   getApprovalGate: (funcKey: string) => ApprovalGateConfig;
+  getSuperAdminGrants: () => Record<string, boolean>;
 
   // employee updaters — each calls logChange. TODO(real persistence: Supabase).
   updateEmployee: (id: string, patch: Partial<Employee>) => void;
@@ -345,8 +370,9 @@ export interface FirmSettingsApi {
   // null = inherit global. Single write-path for per-department colors.
   setDeptScheme: (id: DeptId, scheme: ColorScheme | null) => void;
   setDepartment: (id: DeptId, patch: Partial<DepartmentConfig>) => void;
-  // Owner Portal (step 9) drives this; audited like the other setters.
+  // Owner Portal (step 9) drives these; audited like the other setters.
   setApprovalGate: (funcKey: string, config: ApprovalGateConfig) => void;
+  setSuperAdminGrant: (key: string, value: boolean) => void;
 }
 
 const FirmSettingsCtx = createContext<FirmSettingsApi | null>(null);
@@ -365,6 +391,7 @@ export function FirmSettingsProvider({ actor = 'unknown', children }: { actor?: 
     getDepartment: (id) => state.departments[id],
     getDeptScheme: (id) => state.whiteLabel.deptSchemes[id] ?? state.whiteLabel.globalScheme,
     getApprovalGate: (funcKey) => state.approvalGate[funcKey] ?? { requiresApproval: false },
+    getSuperAdminGrants: () => state.superAdminGrants,
 
     updateEmployee: (id, patch) =>
       setState(s => {
@@ -445,6 +472,11 @@ export function FirmSettingsProvider({ actor = 'unknown', children }: { actor?: 
       setState(s => {
         logChange({ actor, action: 'update', target: `approvalGate:${funcKey}`, before: s.approvalGate[funcKey] ?? null, after: config });
         return { ...s, approvalGate: { ...s.approvalGate, [funcKey]: config } };
+      }),
+    setSuperAdminGrant: (key, value) =>
+      setState(s => {
+        logChange({ actor, action: 'update', target: `superAdminGrant:${key}`, before: s.superAdminGrants[key] ?? false, after: value });
+        return { ...s, superAdminGrants: { ...s.superAdminGrants, [key]: value } };
       }),
   }), [state, actor]);
 
