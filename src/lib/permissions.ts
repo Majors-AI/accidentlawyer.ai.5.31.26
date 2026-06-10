@@ -25,6 +25,8 @@ export interface Permissions {
   canApprove: (funcKey: FuncKey) => boolean;
   // Firm Directory (step 2): firm-wide management of employees.
   canManageDirectory: boolean;
+  // White Label (step 3): firm-wide branding (logo + global/per-dept schemes).
+  canManageBranding: boolean;
   // Whether this user may edit a specific employee. Firm-wide today; the
   // department-supervisor path (edit only your own dept's members) is stubbed.
   canEditEmployee: (employeeDeptIds: DeptId[]) => boolean;
@@ -63,6 +65,10 @@ export function derivePermissions(profile: PermissionProfile | null): Permission
   // Firm-wide directory management is owner/super-admin only today.
   const canManageDirectory = isOwner;
 
+  // TODO(real backing data): branding is firm-wide and owner/super-admin only.
+  // A dedicated firm-owner flag would replace the isOwner approximation here.
+  const canManageBranding = isOwner;
+
   // TODO(real backing data): department supervisors should be able to edit only
   // the members of the department(s) they supervise. Once the supervisor mapping
   // exists, allow when employeeDeptIds intersects the supervisor's departments:
@@ -72,6 +78,6 @@ export function derivePermissions(profile: PermissionProfile | null): Permission
 
   return {
     isOwner, isSuperAdmin, isLawyer, isSupervisorOf, canEditLawyerTasks, canApprove,
-    canManageDirectory, canEditEmployee,
+    canManageDirectory, canEditEmployee, canManageBranding,
   };
 }

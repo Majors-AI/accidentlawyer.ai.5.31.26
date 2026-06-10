@@ -120,12 +120,26 @@ function blankEmployee(id: string): Employee {
   };
 }
 
-// A brandable palette. Kept deliberately small; the White Label step refines it.
+// A brandable theme-token set — enough to actually theme the UI. All hex.
+// schemeToVars() (see theme.ts) maps these to CSS custom properties.
 export interface ColorScheme {
-  primary: string;            // hex, e.g. '#0F77FF'
-  accent: string;
-  text: string;
+  primary: string;            // primary action / brand color, e.g. '#0F77FF'
+  accent: string;            // secondary highlight
+  background: string;        // page background
+  surface: string;           // card / panel background
+  text: string;              // body text
+  mutedText: string;         // secondary / muted text
 }
+
+// Keys of ColorScheme, in display order — drives the per-token input lists.
+export const SCHEME_TOKENS: { key: keyof ColorScheme; label: string }[] = [
+  { key: 'primary', label: 'Primary' },
+  { key: 'accent', label: 'Accent' },
+  { key: 'background', label: 'Background' },
+  { key: 'surface', label: 'Surface' },
+  { key: 'text', label: 'Text' },
+  { key: 'mutedText', label: 'Muted text' },
+];
 
 export interface WhiteLabel {
   logoUrl: string | null;
@@ -177,7 +191,15 @@ const SEED: FirmSettingsState = {
   ],
   whiteLabel: {
     logoUrl: null,
-    globalScheme: { primary: '#0F77FF', accent: '#1A6B3A', text: '#0B1F33' },
+    // Defaults mirror the existing app palette (midnight + electric blue + forest).
+    globalScheme: {
+      primary: '#0F77FF',
+      accent: '#1A6B3A',
+      background: '#F4F6FB',
+      surface: '#FFFFFF',
+      text: '#0B1F33',
+      mutedText: '#5B6B7F',
+    },
     deptSchemes: { intake: null, accounting: null, legal: null },
   },
   departments: {
@@ -281,14 +303,25 @@ export function FirmSettingsProvider({ actor = 'unknown', children }: { actor?: 
     setEmployees: (next) =>
       setState(s => ({ ...s, employees: next })),
     setLogoUrl: (url) =>
-      setState(s => ({ ...s, whiteLabel: { ...s.whiteLabel, logoUrl: url } })),
+      setState(s => {
+        // Log presence, not the (potentially huge) data URL itself.
+        const desc = (u: string | null) => (u ? 'set' : 'cleared');
+        logChange({ actor, action: 'update', target: 'whiteLabel.logoUrl', before: desc(s.whiteLabel.logoUrl), after: desc(url) });
+        return { ...s, whiteLabel: { ...s.whiteLabel, logoUrl: url } };
+      }),
     setGlobalScheme: (scheme) =>
-      setState(s => ({ ...s, whiteLabel: { ...s.whiteLabel, globalScheme: scheme } })),
+      setState(s => {
+        logChange({ actor, action: 'update', target: 'whiteLabel.globalScheme', before: s.whiteLabel.globalScheme, after: scheme });
+        return { ...s, whiteLabel: { ...s.whiteLabel, globalScheme: scheme } };
+      }),
     setDeptScheme: (id, scheme) =>
-      setState(s => ({
-        ...s,
-        whiteLabel: { ...s.whiteLabel, deptSchemes: { ...s.whiteLabel.deptSchemes, [id]: scheme } },
-      })),
+      setState(s => {
+        logChange({ actor, action: 'update', target: `whiteLabel.deptScheme:${id}`, before: s.whiteLabel.deptSchemes[id], after: scheme });
+        return {
+          ...s,
+          whiteLabel: { ...s.whiteLabel, deptSchemes: { ...s.whiteLabel.deptSchemes, [id]: scheme } },
+        };
+      }),
     setDepartment: (id, patch) =>
       setState(s => ({
         ...s,
