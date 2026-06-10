@@ -27,6 +27,9 @@ export interface Permissions {
   canManageDirectory: boolean;
   // White Label (step 3): firm-wide branding (logo + global/per-dept schemes).
   canManageBranding: boolean;
+  // Department (step 4): may edit THIS department's settings. True for a
+  // supervisor of that department, the firm owner, or a super-admin.
+  canManageDepartment: (deptId: DeptId) => boolean;
   // Whether this user may edit a specific employee. Firm-wide today; the
   // department-supervisor path (edit only your own dept's members) is stubbed.
   canEditEmployee: (employeeDeptIds: DeptId[]) => boolean;
@@ -69,6 +72,12 @@ export function derivePermissions(profile: PermissionProfile | null): Permission
   // A dedicated firm-owner flag would replace the isOwner approximation here.
   const canManageBranding = isOwner;
 
+  // A department's settings are editable by its supervisor, the owner, or a
+  // super-admin. isSupervisorOf is still stubbed (see its TODO): the real check
+  // needs the profile -> employee -> DepartmentConfig.supervisorId mapping, which
+  // doesn't exist yet. Supervisors remain scoped to their own department.
+  const canManageDepartment = (deptId: DeptId): boolean => isSupervisorOf(deptId) || isOwner;
+
   // TODO(real backing data): department supervisors should be able to edit only
   // the members of the department(s) they supervise. Once the supervisor mapping
   // exists, allow when employeeDeptIds intersects the supervisor's departments:
@@ -78,6 +87,6 @@ export function derivePermissions(profile: PermissionProfile | null): Permission
 
   return {
     isOwner, isSuperAdmin, isLawyer, isSupervisorOf, canEditLawyerTasks, canApprove,
-    canManageDirectory, canEditEmployee, canManageBranding,
+    canManageDirectory, canEditEmployee, canManageBranding, canManageDepartment,
   };
 }

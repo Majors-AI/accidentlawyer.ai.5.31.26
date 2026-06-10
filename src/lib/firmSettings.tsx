@@ -148,12 +148,48 @@ export interface WhiteLabel {
   deptSchemes: Record<DeptId, ColorScheme | null>;
 }
 
-// Stub config now — each Department step fleshes out its own fields.
+export interface ResponseTemplate {
+  type: string;               // e.g. 'Case Update'; custom types allowed
+  body: string;
+}
+
+// Scaffold — real upload/storage + AI sourcing is backend TODO.
+export interface KnowledgeBaseEntry {
+  id: string;
+  name: string;
+}
+
+// The three named response-template types every department starts with.
+export const DEFAULT_RESPONSE_TEMPLATE_TYPES = [
+  'Case Update',
+  'Request for Information',
+  'Treatment Check-in',
+] as const;
+
 export interface DepartmentConfig {
   id: DeptId;
   label: string;
   enabled: boolean;
-  // TODO(Department steps): supervisorIds, queues, SLAs, function toggles, etc.
+  supervisorId: string | null;          // an employee id
+  hoursOfOperation: WorkHours;           // reuses the per-weekday WorkHours shape
+  lunch: LunchHours;
+  responseTemplates: ResponseTemplate[];
+  knowledgeBase: KnowledgeBaseEntry[];
+  // TODO(step 5): tasks, scores/goals, and caseTypeRules (auto-assign +
+  // case-type engine) land here — intentionally left out of the structural step.
+}
+
+function blankDepartment(id: DeptId): DepartmentConfig {
+  return {
+    id,
+    label: DEPT_LABELS[id],
+    enabled: true,
+    supervisorId: null,
+    hoursOfOperation: blankWorkHours(),
+    lunch: { start: '12:00', minutes: 60 },
+    responseTemplates: DEFAULT_RESPONSE_TEMPLATE_TYPES.map(type => ({ type, body: '' })),
+    knowledgeBase: [],
+  };
 }
 
 export interface FirmSettingsState {
@@ -203,9 +239,9 @@ const SEED: FirmSettingsState = {
     deptSchemes: { intake: null, accounting: null, legal: null },
   },
   departments: {
-    intake: { id: 'intake', label: DEPT_LABELS.intake, enabled: true },
-    accounting: { id: 'accounting', label: DEPT_LABELS.accounting, enabled: true },
-    legal: { id: 'legal', label: DEPT_LABELS.legal, enabled: true },
+    intake: { ...blankDepartment('intake'), supervisorId: 'emp-2' },
+    accounting: blankDepartment('accounting'),
+    legal: { ...blankDepartment('legal'), supervisorId: 'emp-1' },
   },
 };
 
@@ -323,10 +359,12 @@ export function FirmSettingsProvider({ actor = 'unknown', children }: { actor?: 
         };
       }),
     setDepartment: (id, patch) =>
-      setState(s => ({
-        ...s,
-        departments: { ...s.departments, [id]: { ...s.departments[id], ...patch } },
-      })),
+      setState(s => {
+        const before = s.departments[id];
+        const after = { ...before, ...patch };
+        logChange({ actor, action: 'update', target: `department:${id}`, before, after });
+        return { ...s, departments: { ...s.departments, [id]: after } };
+      }),
   }), [state, actor]);
 
   return <FirmSettingsCtx.Provider value={api}>{children}</FirmSettingsCtx.Provider>;
