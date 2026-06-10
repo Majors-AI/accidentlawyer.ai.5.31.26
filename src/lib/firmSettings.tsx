@@ -166,6 +166,41 @@ export const DEFAULT_RESPONSE_TEMPLATE_TYPES = [
   'Treatment Check-in',
 ] as const;
 
+// Department-defined task type. isFollowUp routes back to the initial contact.
+export interface DepartmentTask {
+  id: string;
+  name: string;
+  isFollowUp: boolean;
+}
+
+// Which (state × case-type) combinations a member handles for THIS department.
+// allStates = true means every state (members aren't forced to tick all 50).
+export interface CaseTypeAssignment {
+  allStates: boolean;
+  states: string[];        // US state codes, used only when allStates is false
+  caseTypes: string[];     // claim_type enum values (see CASE_TYPES)
+}
+
+// Case types sourced from the project's claim_type enum (supabase/schema.sql) —
+// not a parallel invented list. Keep value strings in sync with that enum.
+export const CASE_TYPES: { value: string; label: string }[] = [
+  { value: 'mva', label: 'Motor vehicle accident' },
+  { value: 'slip_and_fall', label: 'Slip and fall' },
+  { value: 'negligence', label: 'Negligence' },
+  { value: 'dog_bite', label: 'Dog bite' },
+  { value: 'wrongful_death', label: 'Wrongful death' },
+  { value: 'premises', label: 'Premises' },
+  { value: 'other', label: 'Other' },
+];
+
+// US states + DC, for the state dimension of case-type assignment.
+export const US_STATES: string[] = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID',
+  'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO',
+  'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA',
+  'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+];
+
 export interface DepartmentConfig {
   id: DeptId;
   label: string;
@@ -175,8 +210,12 @@ export interface DepartmentConfig {
   lunch: LunchHours;
   responseTemplates: ResponseTemplate[];
   knowledgeBase: KnowledgeBaseEntry[];
-  // TODO(step 5): tasks, scores/goals, and caseTypeRules (auto-assign +
-  // case-type engine) land here — intentionally left out of the structural step.
+  // Step 5 — auto-assign engine inputs. All scoped to THIS department (keyed by
+  // employee id), so there is no cross-department bleed: a member's score and
+  // case-type coverage in Legal are independent of the same member in Accounting.
+  tasks: DepartmentTask[];
+  strengthScores: Record<string, number>;                  // employeeId -> 0..100
+  caseTypeAssignments: Record<string, CaseTypeAssignment>;  // employeeId -> coverage
 }
 
 function blankDepartment(id: DeptId): DepartmentConfig {
@@ -189,6 +228,12 @@ function blankDepartment(id: DeptId): DepartmentConfig {
     lunch: { start: '12:00', minutes: 60 },
     responseTemplates: DEFAULT_RESPONSE_TEMPLATE_TYPES.map(type => ({ type, body: '' })),
     knowledgeBase: [],
+    tasks: [
+      { id: 'task-update', name: 'Case update', isFollowUp: false },
+      { id: 'task-followup', name: 'Follow-up call', isFollowUp: true },
+    ],
+    strengthScores: {},
+    caseTypeAssignments: {},
   };
 }
 
@@ -239,9 +284,24 @@ const SEED: FirmSettingsState = {
     deptSchemes: { intake: null, accounting: null, legal: null },
   },
   departments: {
-    intake: { ...blankDepartment('intake'), supervisorId: 'emp-2' },
+    intake: {
+      ...blankDepartment('intake'),
+      supervisorId: 'emp-2',
+      strengthScores: { 'emp-2': 70 },
+      caseTypeAssignments: {
+        'emp-2': { allStates: true, states: [], caseTypes: ['mva', 'slip_and_fall'] },
+      },
+    },
     accounting: blankDepartment('accounting'),
-    legal: { ...blankDepartment('legal'), supervisorId: 'emp-1' },
+    legal: {
+      ...blankDepartment('legal'),
+      supervisorId: 'emp-1',
+      strengthScores: { 'emp-1': 90, 'emp-3': 60 },
+      caseTypeAssignments: {
+        'emp-1': { allStates: true, states: [], caseTypes: ['mva', 'wrongful_death', 'negligence'] },
+        'emp-3': { allStates: false, states: ['AZ'], caseTypes: ['mva', 'slip_and_fall'] },
+      },
+    },
   },
 };
 

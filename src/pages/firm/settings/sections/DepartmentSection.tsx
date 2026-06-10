@@ -6,16 +6,22 @@
 import { useState } from 'react';
 import { useAuth } from '../../../../App';
 import {
-  useFirmSettings, WEEKDAYS, DEPT_LABELS,
-  type DeptId, type DepartmentConfig, type Employee, type Weekday,
+  useFirmSettings, WEEKDAYS, DEPT_LABELS, CASE_TYPES, US_STATES,
+  type DeptId, type DepartmentConfig, type Employee, type Weekday, type CaseTypeAssignment,
 } from '../../../../lib/firmSettings';
 import { derivePermissions } from '../../../../lib/permissions';
 import { schemeToVars } from '../../../../lib/theme';
+import { autoAssign } from '../../../../lib/assignment';
 import { DeptSchemeControl } from './WhiteLabel';
+
+const caseTypeLabel = (v: string) => CASE_TYPES.find(c => c.value === v)?.label ?? v;
+const emptyAssignment = (): CaseTypeAssignment => ({ allStates: true, states: [], caseTypes: [] });
 
 // Editable subset of a department's config (the rest — id/label/enabled — isn't
 // edited here). Saved in one shot so audit fires once per save, not per keystroke.
-type DeptDraft = Pick<DepartmentConfig, 'supervisorId' | 'hoursOfOperation' | 'lunch' | 'responseTemplates' | 'knowledgeBase'>;
+type DeptDraft = Pick<DepartmentConfig,
+  'supervisorId' | 'hoursOfOperation' | 'lunch' | 'responseTemplates' | 'knowledgeBase'
+  | 'tasks' | 'strengthScores' | 'caseTypeAssignments'>;
 
 function toDraft(d: DepartmentConfig): DeptDraft {
   return {
@@ -24,6 +30,9 @@ function toDraft(d: DepartmentConfig): DeptDraft {
     lunch: d.lunch,
     responseTemplates: d.responseTemplates,
     knowledgeBase: d.knowledgeBase,
+    tasks: d.tasks,
+    strengthScores: d.strengthScores,
+    caseTypeAssignments: d.caseTypeAssignments,
   };
 }
 
@@ -39,10 +48,25 @@ export default function DepartmentSection({ deptId }: { deptId: DeptId }) {
   const [draft, setDraft] = useState<DeptDraft>(() => toDraft(dept));
   const [newType, setNewType] = useState('');
   const [newKb, setNewKb] = useState('');
+  const [newTask, setNewTask] = useState('');
   const set = (patch: Partial<DeptDraft>) => setDraft(d => ({ ...d, ...patch }));
 
   const save = () => setDepartment(deptId, draft);   // single logChange in the store
   const reset = () => setDraft(toDraft(dept));
+
+  // ---- assignment simulator (pure preview against the in-progress draft) ----
+  const [simTaskId, setSimTaskId] = useState('');
+  const [simState, setSimState] = useState('AZ');
+  const [simCaseType, setSimCaseType] = useState('mva');
+  const [simInitialContactId, setSimInitialContactId] = useState('');
+  const [simOverrideId, setSimOverrideId] = useState('');
+
+  // Per-member coverage helpers operating on the draft (immutable updates).
+  const assignmentFor = (id: string): CaseTypeAssignment => draft.caseTypeAssignments[id] ?? emptyAssignment();
+  const setAssignment = (id: string, patch: Partial<CaseTypeAssignment>) =>
+    set({ caseTypeAssignments: { ...draft.caseTypeAssignments, [id]: { ...assignmentFor(id), ...patch } } });
+  const toggleInArray = (arr: string[], v: string) =>
+    arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v];
 
   // Team grouped by title (the title field drives department team-by-title).
   const byTitle = new Map<string, Employee[]>();
@@ -53,6 +77,25 @@ export default function DepartmentSection({ deptId }: { deptId: DeptId }) {
   }
 
   const fld = { disabled: !canEdit };
+
+  // Run the pure engine against the in-progress draft + live members. Workloads
+  // and availability are scaffold inputs (see assignment.ts TODOs); empty maps
+  // mean every member is available with zero workload.
+  const simTask = draft.tasks.find(t => t.id === simTaskId) ?? draft.tasks[0] ?? null;
+  const simResult = simTask
+    ? autoAssign({
+        task: simTask,
+        caseContext: { state: simState, caseType: simCaseType },
+        members: members.map(m => ({ id: m.id })),
+        scores: draft.strengthScores,
+        caseTypeAssignments: draft.caseTypeAssignments,
+        workloads: {},
+        available: {},
+        initialContactId: simInitialContactId || null,
+        manualOverrideId: simOverrideId || null,
+      })
+    : null;
+  const nameOf = (id: string | null) => (id ? (getEmployee(id)?.fullName ?? id) : null);
 
   return (
     // The dept's own scheme is scoped to its own views via these CSS vars.
@@ -204,6 +247,182 @@ export default function DepartmentSection({ deptId }: { deptId: DeptId }) {
               AI-drafted responses; both the upload and the AI drafting are backend
               TODO. This list is a name-only scaffold. */}
           Scaffold — real document upload/storage and AI-sourced drafting are backend TODO.
+        </p>
+      </div>
+
+      {/* 5a — Auto-assign configuration (tasks, strength scores, case-type
+            coverage). Same draft + single Save: one audited setDepartment call.
+            TODO(governance): non-lawyers must not edit lawyer/attorney tasks —
+            that lawyer-task gating is enforced in the department-specific steps
+            (Legal especially); here, editing is gated by canManageDepartment. */}
+      <div className="card" style={{ marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 style={{ margin: 0 }}>Auto-assign configuration</h3>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn ghost sm" onClick={reset}>Reset</button>
+              <button className="btn sm" onClick={save}>Save changes</button>
+            </div>
+          )}
+        </div>
+        <p className="tiny muted" style={{ marginTop: 4 }}>
+          Scoped to {DEPT_LABELS[deptId]} only — scores and coverage here don’t affect other departments.
+        </p>
+
+        {/* Tasks */}
+        <label style={{ marginTop: 12 }}>Task types</label>
+        {draft.tasks.length === 0 && <p className="muted small">No task types yet.</p>}
+        {draft.tasks.map((t, i) => (
+          <div key={t.id} className="row" style={{ alignItems: 'center', marginBottom: 6 }}>
+            <input value={t.name} {...fld}
+              onChange={e => set({ tasks: draft.tasks.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', margin: 0, flex: '0 0 auto' }}>
+              <input type="checkbox" style={{ width: 'auto' }} checked={t.isFollowUp} {...fld}
+                onChange={e => set({ tasks: draft.tasks.map((x, j) => (j === i ? { ...x, isFollowUp: e.target.checked } : x)) })} />
+              Follow-up
+            </label>
+            {canEdit && (
+              <button className="btn ghost sm" style={{ flex: '0 0 auto', width: 'auto' }}
+                onClick={() => set({ tasks: draft.tasks.filter((_, j) => j !== i) })}>Remove</button>
+            )}
+          </div>
+        ))}
+        {canEdit && (
+          <div className="row" style={{ alignItems: 'center' }}>
+            <input placeholder="New task type (e.g. Demand letter)" value={newTask}
+              onChange={e => setNewTask(e.target.value)} />
+            <button className="btn ghost sm" style={{ flex: '0 0 auto', width: 'auto' }} disabled={!newTask.trim()}
+              onClick={() => { set({ tasks: [...draft.tasks, { id: `task-${Date.now()}`, name: newTask.trim(), isFollowUp: false }] }); setNewTask(''); }}>
+              Add task
+            </button>
+          </div>
+        )}
+
+        {/* Strength scores */}
+        <label style={{ marginTop: 16 }}>Strength scores (0–100, this department)</label>
+        {members.length === 0 && <p className="muted small">No members to score.</p>}
+        {members.map(m => {
+          const v = draft.strengthScores[m.id] ?? 0;
+          return (
+            <div key={m.id} className="row" style={{ alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ flex: '0 0 160px', fontSize: 14 }}>{m.fullName || '(unnamed)'}</span>
+              <input type="range" min={0} max={100} value={v} {...fld}
+                onChange={e => set({ strengthScores: { ...draft.strengthScores, [m.id]: Number(e.target.value) } })} />
+              <span style={{ flex: '0 0 36px', textAlign: 'right', fontSize: 13 }}><b>{v}</b></span>
+            </div>
+          );
+        })}
+
+        {/* Case-type assignment */}
+        <label style={{ marginTop: 16 }}>Case-type assignment</label>
+        {members.length === 0 && <p className="muted small">No members to assign.</p>}
+        {members.map(m => {
+          const a = assignmentFor(m.id);
+          return (
+            <div key={m.id} className="well" style={{ marginBottom: 10 }}>
+              <b style={{ fontSize: 14 }}>{m.fullName || '(unnamed)'}</b>
+              <div style={{ marginTop: 8 }}>
+                <span className="tiny muted">Case types</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  {CASE_TYPES.map(ct => (
+                    <button key={ct.value} className={a.caseTypes.includes(ct.value) ? 'tag gold' : 'tag soft'}
+                      disabled={!canEdit} style={{ border: 'none', cursor: canEdit ? 'pointer' : 'default' }}
+                      onClick={() => canEdit && setAssignment(m.id, { caseTypes: toggleInArray(a.caseTypes, ct.value) })}>
+                      {ct.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', marginTop: 10 }}>
+                <input type="checkbox" style={{ width: 'auto' }} checked={a.allStates} {...fld}
+                  onChange={e => setAssignment(m.id, { allStates: e.target.checked })} />
+                All states
+              </label>
+              {!a.allStates && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                  {US_STATES.map(st => (
+                    <button key={st} className={a.states.includes(st) ? 'tag gold' : 'tag soft'}
+                      disabled={!canEdit} style={{ border: 'none', cursor: canEdit ? 'pointer' : 'default', padding: '2px 8px' }}
+                      onClick={() => canEdit && setAssignment(m.id, { states: toggleInArray(a.states, st) })}>
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 5b — Assignment simulator (pure preview; runs autoAssign on the draft) */}
+      <div className="card" style={{ marginBottom: 0 }}>
+        <h3>Assignment simulator</h3>
+        <p className="tiny muted" style={{ marginTop: 0 }}>
+          Runs the auto-assign engine against the current (unsaved) configuration.
+          Workload &amp; availability are scaffold inputs (every member available, zero workload).
+        </p>
+        <div className="row">
+          <div>
+            <label>Task</label>
+            <select value={simTask?.id ?? ''} onChange={e => setSimTaskId(e.target.value)}>
+              {draft.tasks.map(t => (
+                <option key={t.id} value={t.id}>{t.name}{t.isFollowUp ? ' (follow-up)' : ''}</option>
+              ))}
+              {draft.tasks.length === 0 && <option value="">No tasks defined</option>}
+            </select>
+          </div>
+          <div>
+            <label>State</label>
+            <select value={simState} onChange={e => setSimState(e.target.value)}>
+              {US_STATES.map(st => <option key={st} value={st}>{st}</option>)}
+            </select>
+          </div>
+          <div>
+            <label>Case type</label>
+            <select value={simCaseType} onChange={e => setSimCaseType(e.target.value)}>
+              {CASE_TYPES.map(ct => <option key={ct.value} value={ct.value}>{ct.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="row">
+          <div>
+            <label>Initial contact (for follow-up routing)</label>
+            <select value={simInitialContactId} onChange={e => setSimInitialContactId(e.target.value)}>
+              <option value="">— None —</option>
+              {members.map(m => <option key={m.id} value={m.id}>{m.fullName || '(unnamed)'}</option>)}
+            </select>
+          </div>
+          {canEdit && (
+            <div>
+              <label>Supervisor / super-admin override</label>
+              <select value={simOverrideId} onChange={e => setSimOverrideId(e.target.value)}>
+                <option value="">— No override —</option>
+                {members.map(m => <option key={m.id} value={m.id}>{m.fullName || '(unnamed)'}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="well" style={{ marginTop: 12 }}>
+          {simResult ? (
+            <>
+              <div style={{ fontSize: 14 }}>
+                Assignee:{' '}
+                {simResult.assigneeId
+                  ? <b>{nameOf(simResult.assigneeId)}</b>
+                  : <span className="tag bad">Unassigned</span>}
+              </div>
+              <div className="tiny muted" style={{ marginTop: 4 }}>Reason: {simResult.reason}</div>
+            </>
+          ) : (
+            <p className="muted small" style={{ margin: 0 }}>Define a task type to run the simulator.</p>
+          )}
+        </div>
+        <p className="tiny muted" style={{ marginTop: 8 }}>
+          {/* TODO(real reassignment seam): assignment/override also runs from the
+              client file in the File Cabinet (a separate page); persisting the
+              chosen assignee and that wiring is a later/back-end touch. */}
+          Reassignment also happens from the client file in the File Cabinet — that wiring is a later back-end touch.
         </p>
       </div>
 
