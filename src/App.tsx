@@ -24,6 +24,29 @@ import Reporting from './pages/firm/Reporting';
 import Dashboard from './pages/firm/Dashboard';
 import FirmSettings from './pages/firm/settings/FirmSettings';
 import Firms from './pages/admin/Firms';
+import AppShell from './layout/AppShell';
+import StagePage from './journey/StagePage';
+import { JOURNEY_STAGES } from './journey/stages';
+
+// Client Journey Framework — its own layout subtree, mounted alongside (not
+// inside) the role-based app and NOT behind the auth gate. AppShell is the
+// layout element; one child route per stage maps over JOURNEY_STAGES.
+function JourneyRoutes() {
+  return (
+    <Routes>
+      <Route path="/journey" element={<AppShell />}>
+        <Route index element={<Navigate to={JOURNEY_STAGES[0].path} replace />} />
+        {JOURNEY_STAGES.map((stage) => (
+          <Route
+            key={stage.id}
+            path={stage.path.replace('/journey/', '')}
+            element={<StagePage title={stage.label} />}
+          />
+        ))}
+      </Route>
+    </Routes>
+  );
+}
 
 type Profile = { id: string; full_name: string; email: string; role: string;
   firm_id: string | null; is_platform_admin: boolean };
@@ -54,6 +77,7 @@ export default function App() {
   }, []);
   const signOut = () => supabase.auth.signOut();
 
+  if (loc.pathname.startsWith('/journey')) return <JourneyRoutes />;
   if (loc.pathname === '/accept-invite') return <AcceptInvite />;
   if (loading) return <div className="auth"><div className="muted">Loading…</div></div>;
   if (!profile) return <Login />;

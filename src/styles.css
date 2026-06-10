@@ -501,3 +501,51 @@ tr.clickable:hover td { transition: background 200ms cubic-bezier(.16,1,.3,1); }
 
 /* ---- Page enter — slightly longer for polish ---- */
 .page-enter { animation: page-enter 260ms cubic-bezier(.16,1,.3,1) both; }
+
+/* ======================================================
+   CLIENT JOURNEY FRAMEWORK — shell + fixed bottom bar
+   ====================================================== */
+
+/* Full-height shell with room reserved at the bottom for the fixed bar. */
+.journey-shell{min-height:100%;display:flex;flex-direction:column;
+  padding-bottom:72px}
+
+/* Top header strip — midnight, matching the app sidebar. */
+.journey-header{background:linear-gradient(170deg,var(--color-midnight-ink) 0%,var(--color-midnight-deep) 100%);
+  padding:18px 44px;box-shadow:0 2px 20px rgba(5,12,37,.35)}
+.journey-header .brand{font-family:var(--font-display);font-size:20px;
+  font-weight:300;color:rgba(255,255,255,.95);line-height:1.15;
+  letter-spacing:-0.4px}
+.journey-header .brand small{display:block;font-family:var(--font-body);
+  font-size:10px;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--color-mist);margin-top:5px;opacity:.75}
+
+.journey-main{flex:1;padding:36px 44px;max-width:1120px}
+
+/* Fixed, full-width bottom bar — dark to match the shell. */
+.journey-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;
+  background:linear-gradient(0deg,var(--color-midnight-deep) 0%,var(--color-midnight-ink) 100%);
+  border-top:1px solid rgba(255,255,255,.08);
+  box-shadow:0 -2px 20px rgba(5,12,37,.45)}
+/* Horizontal scroll on narrow widths; wraps gracefully via flex-wrap fallback. */
+.journey-bar-track{display:flex;gap:6px;align-items:center;
+  padding:10px 16px;overflow-x:auto;flex-wrap:wrap;
+  scrollbar-width:thin}
+
+.journey-pill{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;
+  padding:7px 13px;border-radius:var(--radius-badges);
+  color:var(--color-mist);font-size:12px;font-weight:400;
+  white-space:nowrap;border:1px solid transparent;
+  transition:background 200ms cubic-bezier(.16,1,.3,1),
+             color 200ms cubic-bezier(.16,1,.3,1),
+             box-shadow 200ms cubic-bezier(.16,1,.3,1)}
+.journey-pill:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.9)}
+.journey-pill.active{background:var(--color-electric-blue);color:#fff;
+  font-weight:500;box-shadow:0 2px 12px rgba(15,119,255,.35)}
+
+.journey-pill-num{display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;padding:0 5px;border-radius:999px;
+  font-size:10px;font-weight:600;line-height:1;
+  background:rgba(255,255,255,.12);color:rgba(255,255,255,.85)}
+.journey-pill.active .journey-pill-num{background:rgba(255,255,255,.22);color:#fff}
+.journey-pill-icon{font-size:13px;line-height:1}
