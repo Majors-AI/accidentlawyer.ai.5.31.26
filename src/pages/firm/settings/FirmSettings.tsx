@@ -2,6 +2,7 @@
 // sidebar in Layout.tsx) plus nested routes under /settings. Wrapped in the
 // firmSettings provider so every section reads/writes one source of truth.
 import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
+import { useAuth } from '../../../App';
 import { FirmSettingsProvider } from '../../../lib/firmSettings';
 import FirmDirectory from './sections/FirmDirectory';
 import WhiteLabel from './sections/WhiteLabel';
@@ -19,8 +20,10 @@ const SUB_NAV: { to: string; label: string }[] = [
 ];
 
 export default function FirmSettings() {
+  const { profile } = useAuth();
+  const actor = profile?.full_name || profile?.id || 'unknown';
   return (
-    <FirmSettingsProvider>
+    <FirmSettingsProvider actor={actor}>
       <div className="page-h">
         <div className="page-h-left">
           <h1>Firm settings</h1>
