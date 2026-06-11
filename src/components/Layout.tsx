@@ -1,5 +1,7 @@
+import { Fragment } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth, isFirm } from '../App';
+import { FIRM_NAV_GROUPS, FIRM_NAV_SOON } from '../layout/firmNav';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth();
@@ -22,22 +24,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to="/firms" className={({isActive})=>isActive?'active':''}>Firms & metrics</NavLink>
             </nav>
           ) : firm ? (
+            // Firm users now render in FirmShell (no sidebar); this branch is
+            // kept for consistency and sources the same shared FIRM_NAV arrays.
             <nav className="nav">
-              <div className="group">Overview</div>
-              <NavLink to="/" end className={({isActive})=>isActive?'active':''}>Dashboard</NavLink>
-              <div className="group">Caseload</div>
-              <NavLink to="/cases" className={({isActive})=>isActive?'active':''}>All cases</NavLink>
-              <NavLink to="/approvals" className={({isActive})=>isActive?'active':''}>Approval inbox</NavLink>
-              <NavLink to="/legacy" className={({isActive})=>isActive?'active':''}>Legacy import</NavLink>
-              <div className="group">Firm</div>
-              <NavLink to="/account" className={({isActive})=>isActive?'active':''}>Account & billing</NavLink>
-              <NavLink to="/calendar" className={({isActive})=>isActive?'active':''}>Calendar & deadlines</NavLink>
-              <NavLink to="/templates" className={({isActive})=>isActive?'active':''}>Letter templates</NavLink>
-              <NavLink to="/reporting" className={({isActive})=>isActive?'active':''}>Reporting</NavLink>
-              <NavLink to="/settings" className={({isActive})=>isActive?'active':''}>Firm settings</NavLink>
+              {FIRM_NAV_GROUPS.map(g => (
+                <Fragment key={g.group}>
+                  <div className="group">{g.group}</div>
+                  {g.items.map(it => (
+                    <NavLink key={it.to} to={it.to} end={it.end} className={({isActive})=>isActive?'active':''}>{it.label}</NavLink>
+                  ))}
+                </Fragment>
+              ))}
               <div className="group">Coming online</div>
-              <a title="Scaffolded — built next">Dropbox backups</a>
-              <a title="Scaffolded — built next">Trust accounting</a>
+              {FIRM_NAV_SOON.map(label => (
+                <a key={label} title="Scaffolded — built next">{label}</a>
+              ))}
             </nav>
           ) : (
             <nav className="nav">
