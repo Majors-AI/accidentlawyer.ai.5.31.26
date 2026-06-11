@@ -32,12 +32,18 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile, error: profileErr } = await admin
       .from('profiles')
-      .select('id, role, firm_id')
+      .select('id, role, firm_id, is_platform_admin')
       .eq('id', user.id)
       .single();
 
     if (profileErr || !callerProfile) return json({ error: 'Caller profile not found' }, 403);
-    if (!['attorney', 'staff', 'admin'].includes(callerProfile.role) || !callerProfile.firm_id) {
+
+    // A platform admin may seed a NEW firm's first admin, so it is allowed
+    // through WITHOUT a firm_id (it has none). Every OTHER caller keeps the
+    // original gate unchanged: firm staff (attorney/staff/admin) WITH a firm.
+    const isPlatformAdmin = callerProfile.is_platform_admin === true;
+    if (!isPlatformAdmin &&
+        (!['attorney', 'staff', 'admin'].includes(callerProfile.role) || !callerProfile.firm_id)) {
       return json({ error: 'Not authorized to send invites' }, 403);
     }
 
@@ -45,24 +51,40 @@ Deno.serve(async (req) => {
 
     // Parse and validate body
     const body = await req.json();
-    const { email, full_name, role, client_id, redirectTo } = body as {
+    const { email, full_name, role, client_id, redirectTo, firm_id: bodyFirmId } = body as {
       email?: string;
       full_name?: string;
       role?: string;
       client_id?: string;
       redirectTo?: string;
+      firm_id?: string;
     };
 
     if (!email || !full_name) {
       return json({ error: 'email and full_name are required' }, 400);
     }
-    if (!['attorney', 'staff', 'client'].includes(role ?? '')) {
-      return json({ error: 'role must be attorney, staff, or client' }, 400);
+    // Platform admins seed a firm's first user (attorney/admin); every other
+    // caller keeps the original allow-list unchanged.
+    const allowedRoles = isPlatformAdmin
+      ? ['attorney', 'admin']
+      : ['attorney', 'staff', 'client'];
+    if (!allowedRoles.includes(role ?? '')) {
+      return json({ error: `role must be ${allowedRoles.join(', ')}` }, 400);
     }
 
-    // Send the invite — firm_id from caller's profile (body's firm_id is ignored)
+    // Resolve the invitee's firm. Same-firm staff: ALWAYS the caller's firm
+    // (body firm_id ignored — unchanged from before). Platform admin: the
+    // firm_id from the body — the ONLY path that may target a different firm.
+    let inviteFirmId: string;
+    if (isPlatformAdmin) {
+      if (!bodyFirmId) return json({ error: 'firm_id is required for platform-admin invites' }, 400);
+      inviteFirmId = bodyFirmId;
+    } else {
+      inviteFirmId = callerFirmId;
+    }
+
     const { data: inviteData, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-      data: { full_name, role, firm_id: callerFirmId },
+      data: { full_name, role, firm_id: inviteFirmId },
       redirectTo,
     });
     if (inviteErr || !inviteData?.user) {
