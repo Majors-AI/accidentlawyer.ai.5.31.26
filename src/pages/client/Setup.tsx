@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../App';
 import { CONSENT_BLOCKS } from '../../clientConsent/blocks';
-import { recordConsentSet } from '../../clientConsent/store';
-import type { ConsentRecord } from '../../clientConsent/types';
 
 export default function Setup() {
   const { profile } = useAuth();
@@ -18,6 +16,7 @@ export default function Setup() {
   const [signerTitle, setSignerTitle] = useState('');
   const [ackBlocks, setAckBlocks] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
 
   async function load() {
     const { data: cl } = await supabase.from('clients').select('*').eq('profile_id', profile?.id).maybeSingle();
@@ -34,26 +33,29 @@ export default function Setup() {
 
   async function complete() {
     setBusy(true);
-    // Stage 2 capture — write the A–F acknowledgements through the consent seam
-    // FIRST (one row per block), then run the existing engagement/registration
-    // update so onboarding behaves exactly as before. recordConsentSet is an
-    // in-memory STUB this pass (client_consents lands with migration 13).
-    const signed_at = new Date().toISOString();
-    const records: ConsentRecord[] = CONSENT_BLOCKS.map((b) => ({
-      client_id: client.id,
-      firm_id: client.firm_id ?? null,
+    setErr('');
+    // Persist the A–F consents SERVER-SIDE first. The client sends only its
+    // identity-light inputs (name/title) + which blocks + the exact text it
+    // displayed; the record-consent edge function stamps signed_at, signer_ip,
+    // user_agent and consent_hash from the request and resolves the client from
+    // the session. Registration is GATED on this succeeding — consent must
+    // persist before we mark the client registered.
+    const blocks = CONSENT_BLOCKS.map((b) => ({
       agreement_kind: b.kind,
       agreement_version: b.version,
-      signer_name: signerName.trim(),
-      signer_title: signerTitle.trim() || null,
-      signed_at,
-      signer_ip: null,                  // TODO: server-side capture — never client-reported
-      jurisdiction: kase?.jurisdiction ?? null,
+      rendered_text: b.body,
     }));
-    await recordConsentSet(records);
+    const { data, error } = await supabase.functions.invoke('record-consent', {
+      body: { signer_name: signerName.trim(), signer_title: signerTitle.trim() || null, blocks },
+    });
+    if (error || (data && (data as any).error)) {
+      setErr((data as any)?.error ?? error?.message ?? 'Could not record your consent. Please try again.');
+      setBusy(false);
+      return; // do NOT register — consent did not persist
+    }
 
     await supabase.from('clients').update({
-      agreed_to_hire: true, registered: true, engagement_signed_at: signed_at,
+      agreed_to_hire: true, registered: true, engagement_signed_at: new Date().toISOString(),
     }).eq('id', client.id);
     setBusy(false);
     nav('/messages');
@@ -119,6 +121,7 @@ export default function Setup() {
           <button className="btn oxblood" style={{marginTop:18}} disabled={!agree||!consent||!ackBlocks||!signerName.trim()||busy} onClick={complete}>
             {busy?'Activating…':'Sign & activate communication'}
           </button>
+          {err && <p className="err" style={{marginTop:12}}>{err}</p>}
         </div>
       )}
     </>
