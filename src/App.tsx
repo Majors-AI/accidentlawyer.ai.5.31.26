@@ -22,6 +22,7 @@ import Calendar from './pages/firm/Calendar';
 import Templates from './pages/firm/Templates';
 import Reporting from './pages/firm/Reporting';
 import Dashboard from './pages/firm/Dashboard';
+import FirmFileCabinet from './pages/firm/FileCabinet';
 import FirmSettings from './pages/firm/settings/FirmSettings';
 import Firms from './pages/admin/Firms';
 import AppShell from './layout/AppShell';
@@ -44,6 +45,7 @@ const STAGE_ELEMENTS: Record<number, React.ReactNode> = {
   4: <ClientDashboard />,                           // Client Portal
   5: <FirmSettingsProvider><Accounting /></FirmSettingsProvider>, // Accounting Portal
   6: <FirmSettingsProvider><Legal /></FirmSettingsProvider>,      // Legal Department Portal
+  7: <FirmFileCabinet />,                           // File Cabinet (firm-wide documents)
   9: <FirmSettings />,                              // Law Firm Settings (self-contained)
 };
 // FirmSettings owns a nested <Routes> with relative paths, so its route needs a

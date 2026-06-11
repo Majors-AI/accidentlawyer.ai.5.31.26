@@ -10,7 +10,9 @@ export type DocCategory =
   | 'subrogation'
   | 'case_documents';
 
-const ALL_LABELS: Record<DocCategory, string> = {
+// Exported so the firm-wide File Cabinet (src/pages/firm/FileCabinet.tsx) reuses
+// the same category set + labels rather than forking its own copy.
+export const DOC_CATEGORY_LABELS: Record<DocCategory, string> = {
   fee_agreement:  'Fee agreement',
   accident_photos:'Accident photos',
   correspondence: 'Correspondence',
@@ -19,7 +21,7 @@ const ALL_LABELS: Record<DocCategory, string> = {
   case_documents: 'Case documents',
 };
 
-const DEFAULT_CATEGORIES: DocCategory[] = [
+export const DOC_CATEGORIES: DocCategory[] = [
   'fee_agreement', 'accident_photos', 'correspondence', 'medical', 'subrogation', 'case_documents',
 ];
 
@@ -42,7 +44,7 @@ export default function FileCabinet({
   const [docs, setDocs] = useState<any[]>([]);
   const [busy, setBusy] = useState('');
 
-  const activeCats = categories ?? DEFAULT_CATEGORIES;
+  const activeCats = categories ?? DOC_CATEGORIES;
   const readOnlySet = new Set(readOnlyCategories);
 
   async function load() {
@@ -77,7 +79,7 @@ export default function FileCabinet({
   return (
     <div className="grid two">
       {activeCats.map(cat => {
-        const label = categoryLabels[cat] ?? ALL_LABELS[cat];
+        const label = categoryLabels[cat] ?? DOC_CATEGORY_LABELS[cat];
         const items = docs.filter(d => d.category === cat);
         const readOnly = readOnlySet.has(cat);
         return (
