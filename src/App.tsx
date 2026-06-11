@@ -45,6 +45,7 @@ const STAGE_ELEMENTS: Record<number, React.ReactNode> = {
   5: <FirmSettingsProvider><Accounting /></FirmSettingsProvider>, // Accounting Portal
   6: <FirmSettingsProvider><Legal /></FirmSettingsProvider>,      // Legal Department Portal
   9: <FirmSettings />,                              // Law Firm Settings (self-contained)
+  10: <Firms />,                                     // AccidentLawyer.AI Admin (Firms console, self-contained)
 };
 // FirmSettings owns a nested <Routes> with relative paths, so its route needs a
 // splat to let those descendant routes match.
