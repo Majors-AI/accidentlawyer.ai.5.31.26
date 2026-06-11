@@ -19,7 +19,10 @@ export const FIRM_NAV_GROUPS: { group: string; items: FirmNavItem[] }[] = [
     { to: '/calendar', label: 'Calendar & deadlines' },
     { to: '/templates', label: 'Letter templates' },
     { to: '/reporting', label: 'Reporting' },
-    { to: '/settings', label: 'Firm settings' },
+    // 'Firm settings' (/settings → <FirmSettings />) removed: it duplicates the
+    // bottom journey bar's stage 9 "Law Firm Settings", which opens the same
+    // <FirmSettings /> hub. The working-nav keeps only items the journey bar
+    // does not already cover.
   ] },
 ];
 
