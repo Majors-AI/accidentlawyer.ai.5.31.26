@@ -10,6 +10,7 @@ import WhiteLabel from './sections/WhiteLabel';
 import Intake from './sections/Intake';
 import Accounting from './sections/Accounting';
 import Legal from './sections/Legal';
+import TaskManagement from '../../../lawFirmSettings/taskCatalog/TaskManagement';
 import ApprovalGates from './sections/owner/ApprovalGates';
 import AccountingReporting from './sections/owner/AccountingReporting';
 import ProductivityReporting from './sections/owner/ProductivityReporting';
@@ -22,6 +23,7 @@ const SUB_NAV: { to: string; label: string }[] = [
   { to: 'intake', label: 'Intake' },
   { to: 'accounting', label: 'Accounting' },
   { to: 'legal', label: 'Legal' },
+  { to: 'tasks', label: 'Task Management' },
 ];
 
 // Owner-only sections — shown in the same hub nav, gated by isOwner.
@@ -87,6 +89,7 @@ export default function FirmSettings() {
             <Route path="intake" element={<Intake />} />
             <Route path="accounting" element={<Accounting />} />
             <Route path="legal" element={<Legal />} />
+            <Route path="tasks" element={<TaskManagement />} />
             {/* Owner-only routes — guarded; non-owners fall through to redirect */}
             {isOwner && (
               <>
