@@ -33,6 +33,7 @@ import type { JourneyStage } from './journey/stages';
 import { FirmSettingsProvider } from './lib/firmSettings';
 import Accounting from './pages/firm/settings/sections/Accounting';
 import Legal from './pages/firm/settings/sections/Legal';
+import StaffTraining from './lawFirmSettings/staffTraining/StaffTraining';
 
 // Stages that map to a real surface already implemented in this repo. Stages
 // absent from this map fall through to the StagePage "coming soon" placeholder.
@@ -46,6 +47,7 @@ const STAGE_ELEMENTS: Record<number, React.ReactNode> = {
   4: <ClientDashboard />,                           // Client Portal
   5: <FirmSettingsProvider><Accounting /></FirmSettingsProvider>, // Accounting Portal
   6: <FirmSettingsProvider><Legal /></FirmSettingsProvider>,      // Legal Department Portal
+  8: <FirmSettingsProvider><StaffTraining /></FirmSettingsProvider>, // Staff Training (scaffold)
   9: <FirmSettings />,                              // Law Firm Settings (self-contained)
   10: <Firms />,                                     // AccidentLawyer.AI Admin (Firms console, self-contained)
 };
