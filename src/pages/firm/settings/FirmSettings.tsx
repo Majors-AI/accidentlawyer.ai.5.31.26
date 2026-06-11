@@ -11,6 +11,8 @@ import Intake from './sections/Intake';
 import Accounting from './sections/Accounting';
 import Legal from './sections/Legal';
 import TaskManagement from '../../../lawFirmSettings/taskCatalog/TaskManagement';
+import TemplateEditor from '../../../lawFirmSettings/templates/TemplateEditor';
+import SendQueue from '../../../lawFirmSettings/sendQueue/SendQueue';
 import ApprovalGates from './sections/owner/ApprovalGates';
 import AccountingReporting from './sections/owner/AccountingReporting';
 import ProductivityReporting from './sections/owner/ProductivityReporting';
@@ -24,6 +26,8 @@ const SUB_NAV: { to: string; label: string }[] = [
   { to: 'accounting', label: 'Accounting' },
   { to: 'legal', label: 'Legal' },
   { to: 'tasks', label: 'Task Management' },
+  { to: 'action-templates', label: 'Action Templates' },
+  { to: 'send-queue', label: 'Send Queue' },
 ];
 
 // Owner-only sections — shown in the same hub nav, gated by isOwner.
@@ -90,6 +94,8 @@ export default function FirmSettings() {
             <Route path="accounting" element={<Accounting />} />
             <Route path="legal" element={<Legal />} />
             <Route path="tasks" element={<TaskManagement />} />
+            <Route path="action-templates" element={<TemplateEditor />} />
+            <Route path="send-queue" element={<SendQueue />} />
             {/* Owner-only routes — guarded; non-owners fall through to redirect */}
             {isOwner && (
               <>
