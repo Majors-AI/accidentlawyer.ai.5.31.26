@@ -22,6 +22,7 @@ import Calendar from './pages/firm/Calendar';
 import Templates from './pages/firm/Templates';
 import Reporting from './pages/firm/Reporting';
 import Dashboard from './pages/firm/Dashboard';
+import FirmFileCabinet from './pages/firm/FileCabinet';
 import FirmSettings from './pages/firm/settings/FirmSettings';
 import Firms from './pages/admin/Firms';
 import FirmRegistration from './pages/admin/FirmRegistration';
@@ -47,6 +48,7 @@ const STAGE_ELEMENTS: Record<number, React.ReactNode> = {
   4: <ClientDashboard />,                           // Client Portal
   5: <FirmSettingsProvider><Accounting /></FirmSettingsProvider>, // Accounting Portal
   6: <FirmSettingsProvider><Legal /></FirmSettingsProvider>,      // Legal Department Portal
+  7: <FirmFileCabinet />,                           // File Cabinet (firm-wide documents)
   8: <FirmSettingsProvider><StaffTraining /></FirmSettingsProvider>, // Staff Training (scaffold)
   9: <FirmSettings />,                              // Law Firm Settings (self-contained)
   10: <Firms />,                                     // AccidentLawyer.AI Admin (Firms console, self-contained)
