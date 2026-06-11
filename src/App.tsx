@@ -24,6 +24,7 @@ import Reporting from './pages/firm/Reporting';
 import Dashboard from './pages/firm/Dashboard';
 import FirmSettings from './pages/firm/settings/FirmSettings';
 import Firms from './pages/admin/Firms';
+import FirmRegistration from './pages/admin/FirmRegistration';
 import AppShell from './layout/AppShell';
 import FirmShell from './layout/FirmShell';
 import StagePage from './journey/StagePage';
@@ -40,6 +41,7 @@ import Legal from './pages/firm/settings/sections/Legal';
 // department sections are wrapped in FirmSettingsProvider so they render
 // standalone, the way FirmSettings.tsx wraps the whole hub.
 const STAGE_ELEMENTS: Record<number, React.ReactNode> = {
+  1: <FirmRegistration />,                          // Firm Registration (admin onboarding)
   3: <Intake />,                                   // Client Intake
   4: <ClientDashboard />,                           // Client Portal
   5: <FirmSettingsProvider><Accounting /></FirmSettingsProvider>, // Accounting Portal
