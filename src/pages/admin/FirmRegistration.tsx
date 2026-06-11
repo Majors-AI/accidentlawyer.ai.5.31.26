@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { inviteUser } from '../../lib/inviteUser';
 
 // ── Stage 1: Firm Registration (platform-admin onboarding) ──────────────────
 // Captures firm details, fee structure, and platform agreements, then creates
 // the firm for real (reuses the Firms.tsx insert + the "firm super manage" RLS
-// path — is_super_admin() may insert). The first-admin email is captured but NO
-// invite is sent: the invite-user edge function can't yet seed a NEW firm's
-// first admin (it binds invitees to the CALLER's firm and rejects a firm-less
-// platform admin). That auth-model change is a separate server step — so we
-// surface the invite as pending, mirroring how Firms.tsx already defers it.
+// path — is_super_admin() may insert). If a first-admin email is given, it then
+// invites that admin into the NEW firm via the invite-user edge function's
+// platform-admin branch (firm_id = the just-created firm) and reports the send
+// status honestly.
 //
-// No edge-function change, no new schema, no service_role.
+// DEPLOY NOTE: the platform-admin invite branch must be deployed
+// (`supabase functions deploy invite-user`) for the send to succeed. Against
+// the un-deployed function a platform admin still gets 403 — which surfaces
+// here as a failed invite (the firm is still created either way).
+//
+// No new schema, no service_role.
 
 const JURISDICTIONS = ['AZ', 'CA', 'NV', 'TX', 'NM', 'CO', 'UT'];
 
@@ -28,7 +33,10 @@ export default function FirmRegistration() {
   const [adminEmail, setAdminEmail] = useState('');
 
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ name: string; emailGiven: boolean } | null>(null);
+  // invite: null = no admin email given (skipped); otherwise the send outcome.
+  const [done, setDone] = useState<
+    { name: string; email: string; invite: { ok: boolean; error?: string } | null } | null
+  >(null);
   const [error, setError] = useState('');
 
   const adminEmailValid = !adminEmail.trim() || emailOk(adminEmail.trim());
@@ -57,12 +65,24 @@ export default function FirmRegistration() {
       })
       .select()
       .single();
-    setBusy(false);
     if (insErr || !data) {
+      setBusy(false);
       setError(insErr?.message ?? 'Could not create the firm.');
       return;
     }
-    setDone({ name: data.name, emailGiven: !!adminEmail.trim() });
+
+    // Firm created. If a first-admin email was given, invite that admin INTO the
+    // new firm via the invite-user platform-admin branch (firm_id = data.id,
+    // role 'attorney'). full_name defaults to the email; the invitee sets their
+    // real name on accept. A blank email skips the invite (firm still created).
+    const email = adminEmail.trim();
+    let invite: { ok: boolean; error?: string } | null = null;
+    if (email) {
+      const res = await inviteUser({ email, full_name: email, role: 'attorney', firm_id: data.id });
+      invite = res.ok ? { ok: true } : { ok: false, error: res.error };
+    }
+    setBusy(false);
+    setDone({ name: data.name, email, invite });
   }
 
   function reset() {
@@ -81,13 +101,24 @@ export default function FirmRegistration() {
             <span className="tag good tiny" style={{ marginRight: 8 }}>created</span>
             {done.name}
           </h3>
-          <p className="small" style={{ color: 'var(--ink)' }}>
-            Firm created. First-admin invite is <b>pending</b> — the invite seam doesn’t yet
-            support seeding a new firm’s first admin (server step). Once that server step is
-            enabled, {done.emailGiven
-              ? `the invite to ${adminEmail.trim()} can be sent.`
-              : 'add the first admin and send the invite.'}
-          </p>
+          {done.invite === null && (
+            <p className="small" style={{ color: 'var(--ink)' }}>
+              Firm created. No first-admin email was provided — add one later to send the invite.
+            </p>
+          )}
+          {done.invite?.ok && (
+            <p className="small" style={{ color: 'var(--ink)' }}>
+              <span className="tag good tiny" style={{ marginRight: 8 }}>invite sent</span>
+              First-admin invite sent to <b>{done.email}</b> (role: attorney).
+            </p>
+          )}
+          {done.invite && !done.invite.ok && (
+            <p className="small" style={{ color: 'var(--ink)' }}>
+              <span className="tag bad tiny" style={{ marginRight: 8 }}>invite failed</span>
+              Firm created, but the invite to <b>{done.email}</b> failed: {done.invite.error ?? 'unknown error'}.
+              You can retry from the admin console once resolved.
+            </p>
+          )}
           <button className="btn oxblood" style={{ marginTop: 12 }} onClick={reset}>
             Register another firm
           </button>
@@ -163,8 +194,8 @@ export default function FirmRegistration() {
           placeholder="admin@firm.com" />
         {!adminEmailValid && <span className="tag bad tiny" style={{ marginTop: 6 }}>Enter a valid email</span>}
         <p className="muted tiny" style={{ marginTop: 8 }}>
-          Captured for the first-admin invite. The invite is a pending server step — seeding a
-          new firm’s first admin isn’t supported by the invite seam yet, so no invite is sent now.
+          On create, this admin is invited into the new firm as an attorney. Leave blank to skip
+          the invite (the firm is still created). The send status is shown after creation.
         </p>
       </div>
 
