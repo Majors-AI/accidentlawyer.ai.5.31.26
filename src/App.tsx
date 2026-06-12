@@ -6,7 +6,7 @@ import AcceptInvite from './pages/AcceptInvite';
 import Layout from './components/Layout';
 import Intake from './pages/client/Intake';
 import ClientDashboard from './pages/client/Dashboard';
-import Setup from './pages/client/Setup';
+import ClientRegistration from './pages/client/ClientRegistration';
 import ClientMessages from './pages/client/Messages';
 import Journal from './pages/client/Journal';
 import WageLoss from './pages/client/WageLoss';
@@ -44,6 +44,7 @@ import StaffTraining from './lawFirmSettings/staffTraining/StaffTraining';
 // standalone, the way FirmSettings.tsx wraps the whole hub.
 const STAGE_ELEMENTS: Record<number, React.ReactNode> = {
   1: <FirmRegistration />,                          // Firm Registration (admin onboarding)
+  2: <ClientRegistration />,                        // Client Registration (engagement)
   3: <Intake />,                                   // Client Intake
   4: <ClientDashboard />,                           // Client Portal
   5: <FirmSettingsProvider><Accounting /></FirmSettingsProvider>, // Accounting Portal
@@ -196,7 +197,7 @@ export default function App() {
             <>
               <Route path="/" element={<ClientDashboard />} />
               <Route path="/intake" element={<Intake />} />
-              <Route path="/setup" element={<Setup />} />
+              <Route path="/setup" element={<Navigate to="/journey/client-registration" replace />} />
               <Route path="/messages" element={<ClientMessages />} />
               <Route path="/journal" element={<Journal />} />
               <Route path="/wage-loss" element={<WageLoss />} />
