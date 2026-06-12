@@ -1,6 +1,6 @@
 -- ============================================================================
--- 13_client_consent.sql — Client Registration consent capture (stage 2).
--- Run AFTER 12_staff_training.sql. Idempotent; safe to re-run.
+-- 14_client_consent.sql — Client Registration consent capture (stage 2).
+-- Run AFTER 13_client_firm_read.sql. Idempotent; safe to re-run.
 --
 -- ⚠️  REVIEW + APPLY MANUALLY (Dom). NOT APPLIED BY THE APP. Consent rows are
 --     written by the `record-consent` edge function (supabase/functions/

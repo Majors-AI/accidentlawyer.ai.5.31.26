@@ -12,7 +12,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // never trusted from the body. Any client-supplied timestamp/IP/id is ignored.
 //
 // ⚠️  NOT DEPLOYED YET. Deploy is deliberate/held (like invite-user). Requires
-//     supabase/13_client_consent.sql applied first (the client_consents table).
+//     supabase/14_client_consent.sql applied first (the client_consents table).
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

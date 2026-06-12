@@ -3,7 +3,7 @@
 // A ConsentBlock is a PLACEHOLDER slot (see blocks.ts) — no operative legal
 // wording lives in the app. The captured-row shape lives server-side in the
 // record-consent edge function (supabase/functions/record-consent) and the
-// client_consents table (supabase/13_client_consent.sql); the browser only
+// client_consents table (supabase/14_client_consent.sql); the browser only
 // sends {agreement_kind, agreement_version, rendered_text} per block.
 
 // Stable machine keys for each A–F slot. These become client_consents.agreement_kind.

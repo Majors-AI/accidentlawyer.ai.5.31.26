@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../App';
+import { CONSENT_BLOCKS } from '../../clientConsent/blocks';
 
 // Stage 2 — Client Registration. The new client's engagement step: confirm
 // identity, review representation + the firm's contingency fee, grant the
@@ -32,12 +33,13 @@ export default function ClientRegistration() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
 
-  const [agreeRetain, setAgreeRetain] = useState(false);
-  const [agreeHipaa, setAgreeHipaa] = useState(false);
-  const [agreeComms, setAgreeComms] = useState(false);
+  // One acknowledgement covers the A–F consent slots (see clientConsent/blocks.ts).
+  const [ackBlocks, setAckBlocks] = useState(false);
 
   const [signature, setSignature] = useState('');
+  const [signerTitle, setSignerTitle] = useState('');
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -57,11 +59,31 @@ export default function ClientRegistration() {
     return () => { active = false; };
   }, [profile?.id]);
 
-  const canSubmit = agreeRetain && agreeHipaa && agreeComms && signature.trim().length > 1 && !busy;
+  const canSubmit = ackBlocks && signature.trim().length > 1 && !busy;
 
   async function submit() {
     if (!client || !canSubmit) return;
     setBusy(true);
+    setErr('');
+    // Persist the A–F consents SERVER-SIDE first. The browser sends only its
+    // identity-light inputs (typed signature as signer_name, optional capacity)
+    // plus which blocks + the exact text it displayed; the record-consent edge
+    // function stamps signed_at, signer_ip, user_agent and consent_hash and
+    // resolves the client from the session. Registration is GATED on this
+    // succeeding — the engagement flags are written only after consent persists.
+    const blocks = CONSENT_BLOCKS.map((b) => ({
+      agreement_kind: b.kind,
+      agreement_version: b.version,
+      rendered_text: b.body,
+    }));
+    const { data, error } = await supabase.functions.invoke('record-consent', {
+      body: { signer_name: signature.trim(), signer_title: signerTitle.trim() || null, blocks },
+    });
+    if (error || (data && (data as any).error)) {
+      setErr('We couldn’t record your consent — please try again.');
+      setBusy(false);
+      return; // do NOT register — consent did not persist
+    }
     await supabase.from('profiles').update({ full_name: fullName, phone }).eq('id', profile?.id);
     await supabase.from('clients').update({
       registered: true,
@@ -131,20 +153,22 @@ export default function ClientRegistration() {
 
       <div className="card" style={{ maxWidth: 680, marginTop: 16 }}>
         <h3>Authorizations & consent</h3>
-        {/* DRAFT — Dom verbatim */}
+        {/* A–F PLACEHOLDER consent slots — Dom's verbatim text drops in via
+            clientConsent/blocks.ts; nothing operative is shown here. */}
+        <p className="small">Please review each item below. Draft language shown is pending attorney review.</p>
+        <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+          {CONSENT_BLOCKS.map((b) => (
+            <details key={b.slot} className="card" style={{ padding: '10px 12px' }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+                {b.slot}. {b.label} <span className="small muted">({b.version})</span>
+              </summary>
+              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, marginTop: 8, color: 'var(--ink)' }}>{b.body}</pre>
+            </details>
+          ))}
+        </div>
         <label style={cbRow}>
-          <input type="checkbox" style={cbBox} checked={agreeRetain} onChange={e => setAgreeRetain(e.target.checked)} />
-          <span>I agree to retain {firmName} to represent me on my personal-injury claim, as described in my fee agreement, including the contingency fee shown above.</span>
-        </label>
-        {/* DRAFT — Dom verbatim (HIPAA medical-records authorization) */}
-        <label style={cbRow}>
-          <input type="checkbox" style={cbBox} checked={agreeHipaa} onChange={e => setAgreeHipaa(e.target.checked)} />
-          <span>I authorize my healthcare providers to release medical records and bills related to my injuries to {firmName} for the purpose of pursuing my claim (HIPAA authorization). I understand I may revoke this in writing.</span>
-        </label>
-        {/* DRAFT — Dom verbatim (communications consent) */}
-        <label style={cbRow}>
-          <input type="checkbox" style={cbBox} checked={agreeComms} onChange={e => setAgreeComms(e.target.checked)} />
-          <span>I consent to secure communication and document sharing through this portal, and to be contacted by {firmName} by email and text about my case. Message/data rates may apply; I can opt out at any time.</span>
+          <input type="checkbox" style={cbBox} checked={ackBlocks} onChange={e => setAckBlocks(e.target.checked)} />
+          <span>I have read the disclosures and authorizations above (items A–F) and adopt my typed name below as my electronic signature for each.</span>
         </label>
       </div>
 
@@ -152,11 +176,17 @@ export default function ClientRegistration() {
         <h3>Electronic signature</h3>
         <p className="small">Type your full legal name to sign. This is your legally binding electronic signature, dated {new Date().toLocaleDateString()}.</p>
         <input style={fld} placeholder="Type your full name to sign" value={signature} onChange={e => setSignature(e.target.value)} />
+        <label style={{ display: 'block', marginTop: 10 }}>Signing on someone’s behalf? Your capacity, e.g. parent/guardian (optional)
+          <input style={fld} placeholder="Optional" value={signerTitle} onChange={e => setSignerTitle(e.target.value)} />
+        </label>
         <button className="btn oxblood" style={{ marginTop: 18 }} disabled={!canSubmit} onClick={submit}>
           {busy ? 'Signing…' : 'Sign & complete registration'}
         </button>
+        {err && (
+          <div style={{ marginTop: 10, fontSize: 13, color: 'var(--bad, #b3261e)' }}>{err}</div>
+        )}
         {!canSubmit && !busy && (
-          <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>Check all three authorizations and type your name to continue.</div>
+          <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>Acknowledge the disclosures above and type your name to continue.</div>
         )}
       </div>
     </>
