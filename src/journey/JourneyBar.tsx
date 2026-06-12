@@ -3,10 +3,11 @@ import { useAuth } from '../App';
 import { visibleStages } from './stages';
 
 // Fixed full-width bottom bar. Renders only the stages visible to the current
-// profile (others are hidden, not locked). Original stage numbers are kept on
-// the pills, so non-contiguous numbers per role are expected. The active stage
-// is derived from the current route (not local state). Scrolls horizontally on
-// narrow widths.
+// profile (others are hidden, not locked). No leading stage number is shown
+// here: a role sees only a subset of stages, so numbers like "3"/"4" read as
+// "stages missing". Icon + label + active highlight only. (FirmBar keeps its
+// numbering — it shows the full sequence.) The active stage is derived from the
+// current route (not local state). Scrolls horizontally on narrow widths.
 export default function JourneyBar() {
   const { pathname } = useLocation();
   const { profile } = useAuth();
@@ -25,7 +26,6 @@ export default function JourneyBar() {
               aria-current={active ? 'page' : undefined}
               title={stage.label}
             >
-              <span className="journey-pill-num">{stage.id}</span>
               <span className="journey-pill-icon" aria-hidden="true">{stage.icon}</span>
               <span className="journey-pill-label">{stage.label}</span>
             </Link>

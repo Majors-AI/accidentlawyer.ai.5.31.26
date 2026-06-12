@@ -25,7 +25,7 @@ export type JourneyStage = {
 
 export const JOURNEY_STAGES: JourneyStage[] = [
   { id: 1, label: 'Firm Registration', path: '/journey/firm-registration', icon: '🏢', roles: ['admin'] },
-  { id: 2, label: 'Client Registration', path: '/journey/client-registration', icon: '📝', roles: [] },
+  { id: 2, label: 'Client Registration', path: '/journey/client-registration', icon: '📝', roles: ['client'] },
   { id: 3, label: 'Client Intake', path: '/journey/client-intake', icon: '📥', roles: ['client'] },
   { id: 4, label: 'Client Portal', path: '/journey/client-portal', icon: '👤', roles: ['client'] },
   { id: 5, label: 'Accounting Portal', path: '/journey/accounting-portal', icon: '💵', roles: ['firm'] },
