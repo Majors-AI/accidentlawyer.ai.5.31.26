@@ -70,7 +70,7 @@ export default function Intake() {
     if (uploadErrors.length) setErr(`Submitted, but these files failed to upload: ${uploadErrors.join(', ')}`);
 
     setBusy(false);
-    nav('/');
+    nav('/journey/client-portal');
   }
 
   return (

@@ -48,7 +48,7 @@ export default function Documents() {
             No case on file yet. Once you submit your intake an attorney will review it and
             your document folders will appear here.
           </p>
-          <button className="btn oxblood" style={{ marginTop: 14 }} onClick={() => nav('/intake')}>
+          <button className="btn oxblood" style={{ marginTop: 14 }} onClick={() => nav('/journey/client-intake')}>
             Start intake
           </button>
         </div>
@@ -59,7 +59,7 @@ export default function Documents() {
             Complete your engagement &amp; setup to unlock document uploads.
             Your fee agreement will appear here once the firm shares it.
           </p>
-          <button className="btn oxblood sm" style={{ marginTop: 4 }} onClick={() => nav('/setup')}>
+          <button className="btn oxblood sm" style={{ marginTop: 4 }} onClick={() => nav('/journey/client-registration')}>
             Go to setup
           </button>
         </div>
