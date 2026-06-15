@@ -74,7 +74,7 @@ export default function ClientDashboard() {
       <div className="page-h"><div><h1>Welcome, {profile?.full_name?.split(' ')[0]}</h1>
         <div className="sub">You don't have a case on file yet.</div></div></div>
       <div className="card"><p>Start by telling us about your accident.</p>
-        <button className="btn oxblood" onClick={()=>nav('/intake')}>Start intake</button></div>
+        <button className="btn oxblood" onClick={()=>nav('/journey/client-intake')}>Start intake</button></div>
     </>
   );
 
@@ -145,9 +145,9 @@ export default function ClientDashboard() {
       {/* ---- Quick links ---- */}
       <div className="grid three" style={{marginBottom:16}}>
         {([
-          ['/journal',    'Injury journal',  'Log daily pain and symptoms.'],
-          ['/wage-loss',  'Wage loss',        'Track income lost to your injury.'],
-          ['/treatment',  'Treatment',        'Your providers and appointments.'],
+          ['/journey/journal',    'Injury journal',  'Log daily pain and symptoms.'],
+          ['/journey/wage-loss',  'Wage loss',        'Track income lost to your injury.'],
+          ['/journey/treatment',  'Treatment',        'Your providers and appointments.'],
         ] as [string,string,string][]).map(([to, title, desc]) => (
           <div key={to} className="card clickable" style={{marginBottom:0}} onClick={()=>nav(to)}>
             <div style={{fontWeight:600,fontFamily:'var(--serif)',fontSize:16,marginBottom:4}}>{title}</div>

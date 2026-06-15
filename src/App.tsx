@@ -92,6 +92,17 @@ function JourneyRoutes() {
       <Route path="/journey" element={<AppShell />}>
         <Route index element={<Navigate to={home.path} replace />} />
         {JOURNEY_STAGES.map((stage) => stageRoute(stage, profile, home, true))}
+        {/* Client Portal sub-features render inside the AppShell chrome too, so
+            navigating from the portal never flips the client out of the journey
+            shell. These are NOT journey stages (absent from JOURNEY_STAGES /
+            JourneyBar) — they're sub-pages reached from the Client Portal and
+            returned to via the Client Portal pill. */}
+        <Route path="journal" element={<Journal />} />
+        <Route path="wage-loss" element={<WageLoss />} />
+        <Route path="treatment" element={<Treatment />} />
+        <Route path="documents" element={<Documents />} />
+        <Route path="messages" element={<ClientMessages />} />
+        <Route path="profile" element={<Profile />} />
       </Route>
     </Routes>
   );

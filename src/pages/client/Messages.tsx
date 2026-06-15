@@ -30,7 +30,7 @@ export default function ClientMessages() {
       {!client?.registered ? (
         <div className="card"><span className="tag gold">Locked</span>
           <p style={{marginTop:12}}>Complete your engagement & setup to turn on messaging.</p>
-          <button className="btn oxblood" onClick={()=>nav('/setup')}>Go to setup</button>
+          <button className="btn oxblood" onClick={()=>nav('/journey/client-registration')}>Go to setup</button>
         </div>
       ) : caseId ? (
         <div className="card"><MessageThread caseId={caseId} /></div>
