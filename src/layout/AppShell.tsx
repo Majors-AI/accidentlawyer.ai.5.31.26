@@ -8,7 +8,7 @@ import { useAuth } from '../App';
 export default function AppShell() {
   // Reuse the shared signOut (supabase.auth.signOut() + redirect) exactly like
   // FirmShell — gives the logged-in client a clear way out of the portal.
-  const { signOut } = useAuth();
+  const { profile, signOut } = useAuth();
 
   return (
     <div className="journey-shell">
@@ -17,13 +17,21 @@ export default function AppShell() {
           Accident<span style={{ color: 'var(--color-electric-blue)' }}>Lawyer.ai</span>
           <small>Client Journey</small>
         </div>
-        <button
-          className="btn ghost sm"
-          style={{ color: 'rgba(240,250,242,.8)', borderColor: 'rgba(255,255,255,.18)' }}
-          onClick={signOut}
-        >
-          Log out
-        </button>
+        <div className="journey-user" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {profile?.full_name && (
+            <span style={{ color: 'rgba(240,250,242,.85)', fontSize: 13, lineHeight: 1.1 }}>
+              <b style={{ fontWeight: 600 }}>{profile.full_name}</b>
+              <span style={{ opacity: .7, marginLeft: 6 }}>Client</span>
+            </span>
+          )}
+          <button
+            className="btn ghost sm"
+            style={{ color: 'rgba(240,250,242,.8)', borderColor: 'rgba(255,255,255,.18)' }}
+            onClick={signOut}
+          >
+            Log out
+          </button>
+        </div>
       </header>
 
       <main className="journey-main">
